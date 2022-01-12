@@ -1,11 +1,13 @@
 {
+  "metadata": {
+    "namespace": "openshift-adp"
+  },
   "spec": {
       "configuration":{
         "velero":{
           "defaultPlugins": [
             "openshift",
-            "aws",
-            "kubevirt"
+            "aws"
           ]
         }
       },

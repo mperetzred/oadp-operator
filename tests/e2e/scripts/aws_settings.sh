@@ -2,6 +2,9 @@
 
 cat > $TMP_DIR/awscreds <<EOF
 {
+  "metadata": {
+    "namespace": "$NAMESPACE"
+  },
   "spec": {
       "configuration":{
         "velero":{
