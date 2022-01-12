@@ -18,9 +18,9 @@ var namespace, instanceName, settings, cloud, clusterProfile, credSecretRef stri
 var timeoutMultiplier time.Duration
 
 func init() {
-	flag.StringVar(&cloud, "cloud", "", "Cloud Credentials file path location")
+	flag.StringVar(&cloud, "cloud", "/home/mperetz/git/oadp-operator/awscreds", "Cloud Credentials file path location")
 	flag.StringVar(&namespace, "velero_namespace", "velero", "Velero Namespace")
-	flag.StringVar(&settings, "settings", "./templates/default_settings.json", "Settings of the velero instance")
+	flag.StringVar(&settings, "settings", "/tmp/test-settings/awscreds", "Settings of the velero instance")
 	flag.StringVar(&instanceName, "velero_instance_name", "example-velero", "Velero Instance Name")
 	flag.StringVar(&clusterProfile, "cluster_profile", "aws", "Cluster profile")
 	flag.StringVar(&credSecretRef, "creds_secret_ref", "cloud-credentials", "Credential secret ref for backup storage location")

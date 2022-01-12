@@ -35,6 +35,7 @@ type BackupRestoreType string
 const (
 	CSI    BackupRestoreType = "csi"
 	RESTIC BackupRestoreType = "restic"
+	VSL    BackupRestoreType = "vsl"
 )
 
 type DpaCustomResource struct {
@@ -65,7 +66,6 @@ func (v *DpaCustomResource) Build(backupRestoreType BackupRestoreType) error {
 					PodConfig: &oadpv1alpha1.PodConfig{},
 				},
 			},
-			SnapshotLocations: v.CustomResource.Spec.SnapshotLocations,
 			BackupLocations: []oadpv1alpha1.BackupLocation{
 				{
 					Velero: &velero.BackupStorageLocationSpec{
@@ -92,6 +92,8 @@ func (v *DpaCustomResource) Build(backupRestoreType BackupRestoreType) error {
 		dpaInstance.Spec.Configuration.Restic.Enable = pointer.Bool(false)
 		dpaInstance.Spec.Configuration.Velero.DefaultPlugins = append(dpaInstance.Spec.Configuration.Velero.DefaultPlugins, oadpv1alpha1.DefaultPluginCSI)
 		dpaInstance.Spec.Configuration.Velero.FeatureFlags = append(dpaInstance.Spec.Configuration.Velero.FeatureFlags, "EnableCSI")
+	case VSL:
+		dpaInstance.Spec.SnapshotLocations = v.CustomResource.Spec.SnapshotLocations
 	}
 	v.CustomResource = &dpaInstance
 	return nil

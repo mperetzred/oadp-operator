@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"fmt"
 	"io/ioutil"
+
+	"github.com/google/uuid"
 )
 
 func ReadFile(path string) ([]byte, error) {
@@ -13,4 +16,9 @@ func ReadFile(path string) ([]byte, error) {
 	// save passed in cred file as []byteq
 	file, err := ioutil.ReadFile(path)
 	return file, err
+}
+
+func GenNameUuid(prefix string) string {
+	uid, _ := uuid.NewUUID()
+	return fmt.Sprintf("%s-%s", prefix, uid.String())
 }
