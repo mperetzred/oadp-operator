@@ -1,0 +1,13 @@
+app_name: bogus-app
+access_modes: ReadWriteOnce
+storage_size: 1Gi
+pvc_index: 1
+
+
+with_deploy: false
+with_cleanup: false
+with_validate: false
+
+with_deploy_pod_with_a_ampty_pvc: false
+
+

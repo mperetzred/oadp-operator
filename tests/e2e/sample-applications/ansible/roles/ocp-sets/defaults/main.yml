@@ -1,0 +1,47 @@
+daemonset:
+  app_name: hello-daemonset
+
+replicaset:
+  app_name: frontend
+  replicas: 3
+
+statefulset:
+  app_name: hello
+  replicas: 1
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+apis:
+  daemonset:
+    default: "apps/v1"
+    "3.7": "extensions/v1beta1"
+    "3.9": "extensions/v1beta1"
+    "3.10": "extensions/v1beta1"
+    "3.11": "extensions/v1beta1"
+    "4.1": "extensions/v1beta1"
+    "4.2": "extensions/v1beta1"
+    "4.3": "extensions/v1beta1"
+  replicaset:
+    default: "apps/v1"
+    "3.7": "extensions/v1beta1"
+    "3.9": "extensions/v1beta1"
+    "3.10": "extensions/v1beta1"
+    "3.11": "extensions/v1beta1"
+    "4.1": "extensions/v1beta1"
+    "4.2": "extensions/v1beta1"
+    "4.3": "extensions/v1beta1"
+  statefulset:
+    default: "apps/v1"
+    "3.7": "apps/v1beta1"
+    "3.9": "apps/v1beta1"
+    "3.10": "apps/v1beta1"
+    "3.11": "apps/v1beta1"
+    "4.1": "apps/v1beta1"
+    "4.2": "apps/v1beta1"
+    "4.3": "apps/v1beta1"
+
+daemonset_api: "{{ apis.daemonset.get(cluster_version, apis.daemonset.get('default')) }}"
+replicaset_api: "{{ apis.replicaset.get(cluster_version, apis.replicaset.get('default')) }}"
+statefulset_api: "{{ apis.statefulset.get(cluster_version, apis.statefulset.get('default')) }}"

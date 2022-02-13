@@ -1,0 +1,16 @@
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  annotations:
+    description: This is a test project with name {{ namespace }}
+    openshift.io/display-name: ""
+    openshift.io/node-selector: region={{ project_region }}
+    openshift.io/sa.scc.mcs: s0:c18,c2
+    openshift.io/sa.scc.supplemental-groups: 1000310000/10000
+    openshift.io/sa.scc.uid-range: 1000310000/10000
+  labels:
+    name: {{ project_label }}
+  name: {{ namespace }}
+spec:
+  finalizers:
+  - kubernetes

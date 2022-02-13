@@ -1,0 +1,4 @@
+mount_volume_claim: nginx-html
+file_path: index.html
+
+app_name: vol-corruptor

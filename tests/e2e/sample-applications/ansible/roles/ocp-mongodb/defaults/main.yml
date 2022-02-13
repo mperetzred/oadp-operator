@@ -1,0 +1,9 @@
+namespace: ocp-24797-mongodb
+
+mongodb_user: user
+mongodb_pass: pass
+mongodb_version: latest
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

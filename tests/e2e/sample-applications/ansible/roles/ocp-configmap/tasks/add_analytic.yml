@@ -1,0 +1,8 @@
+# Fill in the data in analytic_data_validation variable, so that the analytic data can be validated
+#
+
+- name: Add analytic data to the anlytic validation data list in controller
+  set_fact:
+    analytic_data_validation: "{{ hostvars[groups['controller_cluster'][0]].get('analytic_data_validation', [])  + analytic_data }}"
+  delegate_to: "{{ groups['controller_cluster']|first }}"
+  delegate_facts: true

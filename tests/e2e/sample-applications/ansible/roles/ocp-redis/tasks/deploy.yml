@@ -1,0 +1,59 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Ensure namespaces are present
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns_check
+  until: ns_check.resources | length > 0
+  retries: 6
+  delay: 5
+
+- name: Create  redis application from  templates
+  shell: >-
+       {{ oc_binary }} --server {{ url }} --token {{ token }} process  -p NAMESPACE={{ namespace }} -p REDIS_PASSWORD={{ redis_password }}  
+       -f {{ role_path }}/files/redis-persistent-template.yml | {{ oc_binary }}  --server {{ url }} --token {{ token }}  create -f -
+
+- name: Check redis pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=redis"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 60
+
+- name: Copy redis provision script to pod
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} cp {{ role_path }}/files/redis.cmds {{ (pod.resources|first).metadata.name }}:/tmp/redis.cmds"
+  register: result
+  delay: 10
+  retries: 12
+  until: result.rc == 0
+
+- name: Load data in redis
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} exec {{ (pod.resources|first).metadata.name }} -- /bin/bash -c \"redis-cli -a {{ redis_password }} < /tmp/redis.cmds\""
+  register: output
+  until: output.rc == 0 and output.stdout != ''
+  delay: 10
+  retries: 12

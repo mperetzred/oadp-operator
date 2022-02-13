@@ -1,0 +1,45 @@
+- name: Get all services
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Service
+    namespace: "{{ namespace }}"
+  register: services
+  until: services is success
+  retries: 6
+  delay: 5
+
+- name: Remove finalizers
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    state : present
+    kind : Service
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ item.metadata.namespace }}"
+    definition:
+      metadata:
+        finalizers: null
+  when: item.spec.type == 'LoadBalancer'
+  register: res
+  until: res is success
+  retries: 30
+  delay: 10
+  loop: "{{ services.resources }}"
+  loop_control:
+    label: "Remove finalizers in service {{ item.metadata.name }} in namespace {{ item.metadata.namespace }}"
+
+- name: Remove namespace {{ namespace }}
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    name: "{{ namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: absent
+    wait: yes
+    wait_timeout: 300
+ 

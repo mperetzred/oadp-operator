@@ -1,0 +1,93 @@
+- name: Check image stream
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: ImageStream
+    namespace: "{{ namespace }}"
+    name: "{{ internal_image_name }}"
+  register: imagestream
+  until: (imagestream.resources | length == 1) and (imagestream.resources[0].status.dockerImageRepository is search(internal_image_name | string))
+  retries: 30
+
+- name: Check external image job status. Must be active.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Job
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ ext_app_name }}"
+  register: job
+  until: job.resources | length > 0 and job.resources[0].status.active == 1
+  retries: 30
+
+- name: Check internal image job status. Must be active.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Job
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ int_app_name }}"
+  register: job
+  until: job.resources | length > 0 and job.resources[0].status.active == 1
+  retries: 30
+
+- name: Check fast job status. Must be finished.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Job
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ fast_app_name }}"
+  register: job
+  until: job.resources | length > 0 and job.resources[0].status.succeeded is defined and job.resources[0].status.succeeded == 1
+  retries: 30
+
+- name: Check external image pods status. Must be running.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ ext_app_name }}"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Check internal image pods status. Must be running.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ int_app_name }}"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Check fast pod status. Must be completed and succeed.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ fast_app_name }}"
+    field_selectors: 
+    - status.phase=Succeeded
+  register: pod
+  until: pod.resources | default([]) | length > 0
+  retries: 30

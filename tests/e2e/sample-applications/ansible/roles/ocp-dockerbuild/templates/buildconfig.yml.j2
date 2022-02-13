@@ -1,0 +1,35 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  labels:
+    build: {{ docker_image }}
+  name: {{ docker_image }}
+  namespace: {{ namespace }}
+spec:
+  failedBuildsHistoryLimit: 5
+  output:
+    to:
+      kind: ImageStreamTag
+      name: {{ output_imagestream }}:latest
+  postCommit: {}
+  resources: {}
+  runPolicy: Serial
+  source:
+    dockerfile: |
+{% for line in docker_file.split('\n') %}
+      {{ line }}
+{% endfor %}
+    type: Dockerfile
+  strategy:
+    dockerStrategy:
+      from:
+        #kind: ImageStreamTag
+        kind: DockerImage
+        name: {{ docker_image }}:{{ docker_image_tag }}
+    type: Docker
+  successfulBuildsHistoryLimit: 5
+  triggers:
+  - type: ConfigChange
+  - imageChange:
+      lastTriggeredImageID: centos@sha256:e4ca2ed0202e76be184e75fb26d14bf974193579039d5573fb2348664deef76e
+    type: ImageChange

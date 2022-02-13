@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ app_name }}-two-pv-base-data
+  namespace: {{ namespace }} 
+  labels:
+    app: {{ app_name }}-base 
+spec:
+  restartPolicy: OnFailure
+  containers:
+  - name: bogus 
+    image: quay.io/openshifttest/alpine:latest
+    command: [ "/bin/sh", "-c", "--" ]
+    args:
+    - set -xe;
+      cd /data/vol/1;
+      echo 'line 1' >  file;
+      echo 'line 2' >> file; 
+      echo 'line 1' >  file1; 
+      dd if=/dev/urandom of=/data/vol/1/binary.rnd bs=1048576 count=1; 
+      sha256sum binary.rnd > binary.sha256; 
+      cd /data/vol/2;
+      echo 'line 1' >  file; 
+      echo 'line 2' >> file; 
+      echo 'line 1' >  file1; 
+      dd if=/dev/urandom of=/data/vol/2/binary.rnd bs=1048576 count=1; 
+      sha256sum binary.rnd > binary.sha256;
+      exit 0;
+    volumeMounts:
+    - name: testpv1
+      mountPath: /data/vol/1
+    - name: testpv2
+      mountPath: /data/vol/2
+  volumes:
+  - name: testpv1
+    persistentVolumeClaim:
+      claimName: {{ namespace }}-pvc-1
+  - name: testpv2
+    persistentVolumeClaim:
+      claimName: {{ namespace }}-pvc-2
+
+

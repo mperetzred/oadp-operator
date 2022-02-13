@@ -1,0 +1,106 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    labels:
+      app: {{ app_name }}
+    name: {{ app_name }}-logs
+    namespace: {{ namespace }}
+  spec:
+    accessModes:
+    - {{ logs_accessmode }}
+    resources:
+      requests:
+        storage: {{ storage_size }}
+{% if storage_class is defined and storage_class != "default" %}
+    storageClassName: {{ storage_class | quote }}
+{% endif %}
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    labels:
+      app: {{ app_name }}
+    name: {{ app_name }}-html
+    namespace: {{ namespace }}
+  spec:
+    accessModes:
+    - {{ html_accessmode }}
+    resources:
+      requests:
+        storage: {{ storage_size }}
+{% if storage_class is defined and storage_class != "default" %}
+    storageClassName: {{ storage_class | quote }}
+{% endif %}
+- apiVersion: {{ deployment_api }}
+  kind: Deployment
+  metadata:
+    labels:
+      app: {{ app_name }}
+    name: {{ app_name }}-deployment
+    namespace: {{ namespace }}
+  spec:
+    replicas: 1
+{% if deployment_api == 'apps/v1' %}
+    selector:
+      matchLabels:
+        app: {{ app_name }}
+{% endif %}
+    template:
+      metadata:
+        labels:
+          app: {{ app_name }}
+      spec:
+        containers:
+        - image: quay.io/openshifttest/openshift-nginx:latest
+          resources:
+            limits:
+              cpu: "0.1"
+              memory: 128Mi
+          name: {{ app_name }}
+          ports:
+          - containerPort: 8081
+          volumeMounts:
+          - mountPath: /var/log/nginx
+            name: {{ app_name }}-logs
+            readOnly: false
+          - mountPath: /usr/share/nginx/html
+            name: {{ app_name }}-html
+            readOnly: false
+        volumes:
+        - name: {{ app_name }}-logs
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-logs
+        - name: {{ app_name }}-html
+          persistentVolumeClaim:
+            claimName: {{ app_name }}-html
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: {{ app_name }}
+    name: my-{{ app_name }}
+    namespace: {{ namespace }}
+  spec:
+    ports:
+    - port: 8081
+      targetPort: 8081
+    selector:
+      app: {{ app_name }}
+    type: ClusterIP
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    labels:
+      app: {{ app_name }}
+      service: my-{{ app_name }}
+    name: my-{{ app_name }}
+    namespace: {{ namespace }}
+  spec:
+    port:
+      targetPort: 8081
+    to:
+      kind: Service
+      name: my-{{ app_name }}
+kind: List
+metadata: {}

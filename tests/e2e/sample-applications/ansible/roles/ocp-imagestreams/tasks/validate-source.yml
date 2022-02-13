@@ -1,0 +1,59 @@
+- name: Check image streams
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: ImageStream
+    namespace: "{{ namespace }}"
+    name: "{{ item.internal_image_name }}"
+  register: imagestream
+  until: imagestream.get('resources',[]) | length == 1
+  retries: 10
+  loop: "{{ image_streams }}"
+  loop_control:
+    label: "Check that imagestream {{ item.internal_image_name }} exists"
+
+- name: Check initial tags
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: ImageStreamTag
+    namespace: "{{ namespace }}"
+    name: "{{ item.internal_image_name }}:{{ item.internal_image_tag }}"
+  register: istag
+  until: istag.get('resources',[]) | length == 1
+  retries: 10
+  loop: "{{ image_streams }}"
+  loop_control:
+    label: "Check that imagestream tag {{ item.internal_image_name}}:{{item.internal_image_tag }} exists"
+
+- name: Check extra tags
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: ImageStreamTag
+    namespace: "{{ namespace }}"
+    name: "{{ item.0.internal_image_name }}:{{ item.1.name }}"
+  register: istag
+  until: istag.get('resources',[]) | length == 1
+  retries: 10
+  loop: "{{ image_streams|subelements('extra_tags') }}"
+  loop_control:
+    label: "Check that imagestream tag {{ item.0.internal_image_name}}:{{item.1.name }} exists"
+
+## BZ https://bugzilla.redhat.com/show_bug.cgi?id=1820250
+#  This bug breaks the following part. Once it's fixed the pods creation should be uncommented.
+#- name: Check pods running
+#  k8s_info:
+#    host: "{{ url }}"
+#    api_key: "{{ token }}"
+#    verify_ssl: no
+#    kind: Pod
+#    namespace: "{{ namespace }}"
+#    field_selectors: 
+#    - status.phase!=Running
+#  register: pods
+#  until: pods.get( 'resources',[]) | length == 0
+#  retries: 10

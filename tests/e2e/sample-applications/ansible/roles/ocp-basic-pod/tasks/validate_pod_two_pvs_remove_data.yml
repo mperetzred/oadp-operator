@@ -1,0 +1,71 @@
+- name: sleep for a while to wait pod start
+  pause:
+    seconds: 60
+
+- name: check pod number
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}"
+    field_selectors:
+    - status.phase=Running
+  register: pod
+
+- when: with_after_migrate_migration |default(false)|bool == true
+  block: 
+  - fail:
+      msg: "There should be one pod present after migrate migration."
+    when: pod.resources | length != 1 
+
+- when: with_after_migrate_migration |default(false)|bool == false 
+  block: 
+  - fail:
+      msg: "There should be no pod present before migrate  migration."
+    when: pod.resources | length != 0 
+
+- name: Check PVCs status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: PersistentVolumeClaim 
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}"
+  register: app_pvc
+
+- fail:
+    msg: "There should be two PVC present after the stage migration."
+  when: app_pvc.resources | length != 2 
+
+- fail:
+    msg: "PVC {{ item.metadata.name }} should be bound, before and after the migration."
+  when: item.status.phase != 'Bound' 
+  loop: "{{ app_pvc.resources }}"
+  loop_control:
+    label: "check if PVC {{ item.metadata.name }} is bound in namespace {{ item.metadata.namespace }}"
+
+- name: Validate the volume
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'validate_pod_two_pvs_remove_data.yml.j2' )}}"
+
+- name: Wait until validation is done
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}-validate-remove"
+    field_selectors: 
+    - status.phase=Succeeded
+  register: pod
+  until: pod.resources | length > 0
+  retries: 30
+

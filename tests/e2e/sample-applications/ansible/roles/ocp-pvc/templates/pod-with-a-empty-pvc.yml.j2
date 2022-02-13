@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ app_name }}-with-a-empty-pvc
+  namespace: {{ namespace }} 
+  labels:
+    app: {{ app_name }} 
+spec:
+  restartPolicy: OnFailure
+  containers:
+  - name: bogus 
+    image: quay.io/openshifttest/alpine:latest
+    command: [ "/bin/sh", "-c", "--" ]
+    args: [ "echo 'Bogus pod to bind the volume.'; exit 0" ]
+    volumeMounts:
+    - name: testvolume
+      mountPath: /data/vol
+  volumes:
+  - name: testvolume
+    persistentVolumeClaim:
+      claimName: {{ namespace }}-pvc-{{ pvc_index }}

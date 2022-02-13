@@ -1,0 +1,6 @@
+redis_password: "PASSWORD"
+redis_version: "latest"
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

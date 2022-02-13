@@ -1,0 +1,20 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Deploy application
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'manifest.yml' )}}"

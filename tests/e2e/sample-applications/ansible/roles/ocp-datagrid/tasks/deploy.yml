@@ -1,0 +1,45 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Ensure namespaces are present
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns_check
+  until: ns_check.resources | length > 0
+  retries: 6
+  delay: 5
+
+- name: Create the  mtc test datagrid service template
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('file', 'files/mtc-test-datagrid-service-template.yml' )}}"
+
+- name: Create openshift datagird application from openshift templates
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} new-app --template mtc-test-datagrid-service -p APPLICATION_USER={{ app_user }} -p APPLICATION_PASSWORD={{ app_password }} -p NUMBER_OF_INSTANCES={{ num_dg_instances }} -p STATEFUL_API={{ statefulset_api }}"
+
+- name: Expose the application service via route
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} create route reencrypt datagrid-service-https --port=https --service datagrid-service"
+
+- name: Create a hot-rod basic client
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} process -f {{ hotrod_client_sourcecode }} -p HOTROD_PASSWORD={{ app_password }} -p HOTROD_USER={{ app_user }}  | {{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} create -f -"
+
+- name: Create a cronjob basic rest client
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} process -f {{ cronjob_insert_sourcecode }} -p CACHE={{ rest_cache_name }} -p CRON_NAME={{ cron_name }} -p DATAGRID_USERNAME={{ app_user }} -p DATAGRID_PASSWORD={{ app_password }} -p CRONJOB_API={{ cronjob_api }} | {{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} create -f -"

@@ -1,0 +1,13 @@
+- name: Check external image nodes status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ default_app_name }}"
+    field_selectors:
+    - status.phase==Running
+  register: pod
+  until: pod.resources | default([]) | length == default_replicas | int
+  retries: 120

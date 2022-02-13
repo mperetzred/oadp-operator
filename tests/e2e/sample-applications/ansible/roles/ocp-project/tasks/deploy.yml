@@ -1,0 +1,7 @@
+- name: Deploy project with labels and selectors
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'deployment.yml.j2' )}}"

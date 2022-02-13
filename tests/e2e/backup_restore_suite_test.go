@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"errors"
 	"log"
 	"time"
 
@@ -9,6 +8,8 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/openshift/oadp-operator/tests/e2e/lib"
 	utils "github.com/openshift/oadp-operator/tests/e2e/utils"
+
+	//. "github.com/openshift/oadp-operator/tests/v1/apps"
 	velero "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -17,6 +18,7 @@ type VerificationFunction func(client.Client, string) error
 
 var _ = Describe("AWS backup restore tests", func() {
 	var currentBackup BackupInterface
+	var currentApp App
 
 	var _ = BeforeEach(func() {
 		testSuiteInstanceName := "ts-" + instanceName
@@ -31,43 +33,28 @@ var _ = Describe("AWS backup restore tests", func() {
 	var _ = AfterEach(func() {
 		err := dpaCR.Delete()
 		Expect(err).ToNot(HaveOccurred())
+		log.Printf("Cleaning resources")
 		if currentBackup != nil {
 			err = currentBackup.CleanBackup()
+			Expect(err).ToNot(HaveOccurred())
+		}
+		log.Printf("Cleaning app")
+		if currentApp != nil {
+			err = currentApp.Cleanup()
 			Expect(err).ToNot(HaveOccurred())
 		}
 
 	})
 
 	type BackupRestoreCase struct {
-		ApplicationTemplate string
-		BackupSpec          velero.BackupSpec
-		Name                string
-		PreBackupVerify     VerificationFunction
-		PostRestoreVerify   VerificationFunction
-		MaxK8SVersion       *K8sVersion
-		MinK8SVersion       *K8sVersion
+		Name          string
+		BackupSpec    velero.BackupSpec
+		MaxK8SVersion *K8sVersion
+		MinK8SVersion *K8sVersion
 	}
 
-	parksAppReady := VerificationFunction(func(ocClient client.Client, namespace string) error {
-		Eventually(IsDCReady(ocClient, "parks-app", "restify"), timeoutMultiplier*time.Minute*10, time.Second*10).Should(BeTrue())
-		return nil
-	})
-	mysqlReady := VerificationFunction(func(ocClient client.Client, namespace string) error {
-		// This test confirms that SCC restore logic in our plugin is working
-		//Eventually(IsDCReady(ocClient, "mssql-persistent", "mysql"), timeoutMultiplier*time.Minute*10, time.Second*10).Should(BeTrue())
-		Eventually(IsDeploymentReady(ocClient, "mysql-persistent", "mysql"), timeoutMultiplier*time.Minute*10, time.Second*10).Should(BeTrue())
-		exists, err := DoesSCCExist(ocClient, "mysql-persistent-scc")
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return errors.New("did not find MYSQL scc")
-		}
-		return nil
-	})
-
 	DescribeTable("backup and restore applications",
-		func(brCase BackupRestoreCase, backup BackupInterface, expectedErr error) {
+		func(brCase BackupRestoreCase, backup BackupInterface, app App, expectedErr error) {
 
 			err := dpaCR.Build(backup.GetType())
 			Expect(err).NotTo(HaveOccurred())
@@ -89,20 +76,15 @@ var _ = Describe("AWS backup restore tests", func() {
 			brCaseName := brCase.Name
 			backup.NewBackup(dpaCR.Client, brCaseName, &brCase.BackupSpec)
 			backupRestoreName := backup.GetBackupSpec().Name
-			currentBackup = backup
 			err = backup.PrepareBackup()
 			Expect(err).ToNot(HaveOccurred())
+			currentBackup = backup
 
 			// install app
 			log.Printf("Installing application for case %s", brCaseName)
-			err = InstallApplication(dpaCR.Client, brCase.ApplicationTemplate)
-			Expect(err).ToNot(HaveOccurred())
-			// wait for pods to be running
-			Eventually(AreApplicationPodsRunning(brCaseName), timeoutMultiplier*time.Minute*9, time.Second*5).Should(BeTrue())
-
-			// Run optional custom verification
-			log.Printf("Running pre-backup function for case %s", brCaseName)
-			err = brCase.PreBackupVerify(dpaCR.Client, brCaseName)
+			Expect(app.Deploy()).ToNot(HaveOccurred())
+			currentApp = app
+			err = app.Validate()
 			Expect(err).ToNot(HaveOccurred())
 
 			// create backup
@@ -122,11 +104,7 @@ var _ = Describe("AWS backup restore tests", func() {
 
 			// uninstall app
 			log.Printf("Uninstalling app for case %s", brCaseName)
-			err = UninstallApplication(dpaCR.Client, brCase.ApplicationTemplate)
-			Expect(err).ToNot(HaveOccurred())
-
-			// Wait for namespace to be deleted
-			Eventually(IsNamespaceDeleted(brCaseName), timeoutMultiplier*time.Minute*2, time.Second*5).Should(BeTrue())
+			Expect(app.Cleanup()).ToNot(HaveOccurred())
 
 			// run restore
 			log.Printf("Creating restore %s for case %s", backupRestoreName, brCaseName)
@@ -139,65 +117,90 @@ var _ = Describe("AWS backup restore tests", func() {
 			succeeded, err = IsRestoreCompletedSuccessfully(dpaCR.Client, namespace, backupRestoreName)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(succeeded).To(Equal(true))
-
-			// verify app is running
-			Eventually(AreApplicationPodsRunning(brCaseName), timeoutMultiplier*time.Minute*9, time.Second*5).Should(BeTrue())
-
-			// Run optional custom verification
-			log.Printf("Running post-restore function for case %s", brCaseName)
-			err = brCase.PostRestoreVerify(dpaCR.Client, brCaseName)
+			err = app.Validate()
 			Expect(err).ToNot(HaveOccurred())
-
-			// Test is successful, clean up everything
-			log.Printf("Uninstalling application for case %s", brCaseName)
-			err = UninstallApplication(dpaCR.Client, brCase.ApplicationTemplate)
-			Expect(err).ToNot(HaveOccurred())
-
-			// Wait for namespace to be deleted
-			Eventually(IsNamespaceDeleted(brCaseName), timeoutMultiplier*time.Minute*2, time.Second*5).Should(BeTrue())
 
 		},
-		Entry("MySQL application CSI", Label("aws"), BackupRestoreCase{
+		Entry("MySQL application CSI", Label("aws"),
+			BackupRestoreCase{
+				Name: "mysql-persistent",
+				BackupSpec: velero.BackupSpec{
+					IncludedNamespaces: []string{"mysql-persistent"},
+				},
+			},
+			&BackupCsi{},
+			&GenericApp{
+				Name:      "ocp-mysql",
+				Namespace: "mysql-persistent",
+			}, nil),
+		Entry("MSSQL application",
+			BackupRestoreCase{
+				Name: "mssql-persistent",
+				BackupSpec: velero.BackupSpec{
+					IncludedNamespaces: []string{"mssql-persistent"},
+				},
+			},
+			&BackupVsl{CreateFromDpa: false},
+			&GenericApp{
+				Name:      "ocp-mssql",
+				Namespace: "mssql-persistent",
+			}, nil),
+		FEntry("Django application",
+			BackupRestoreCase{
+				Name: "django-persistent",
+				BackupSpec: velero.BackupSpec{
+					IncludedNamespaces: []string{"django-persistent"},
+				},
+			},
+			&BackupCsi{},
+			&AccessUrlApp{
+				GenericApp: GenericApp{
+					Name:      "ocp-django",
+					Namespace: "django-persistent",
+				},
+			}, nil),
 
-			ApplicationTemplate: "./sample-applications/mysql-persistent/mysql-persistent-csi-template.yaml",
-			Name:                "mysql-persistent",
-			BackupSpec: velero.BackupSpec{
-				IncludedNamespaces: []string{"mysql-persistent"},
-			},
-			PreBackupVerify:   mysqlReady,
-			PostRestoreVerify: mysqlReady,
-		}, &BackupCsi{}, nil),
-		Entry("Parks application <4.8.0", BackupRestoreCase{
-			ApplicationTemplate: "./sample-applications/parks-app/manifest.yaml",
-			Name:                "parks-app",
-			BackupSpec: velero.BackupSpec{
-				IncludedNamespaces: []string{"parks-app"},
-			},
-			PreBackupVerify:   parksAppReady,
-			PostRestoreVerify: parksAppReady,
-			MaxK8SVersion:     &K8sVersionOcp47,
-		}, &BackupVsl{CreateFromDpa: false},
-			nil),
-		Entry("MySQL application", BackupRestoreCase{
-			ApplicationTemplate: "./sample-applications/mysql-persistent/mysql-persistent-template.yaml",
-			Name:                "mysql-persistent",
-			PreBackupVerify:     mysqlReady,
-			PostRestoreVerify:   mysqlReady,
-			BackupSpec: velero.BackupSpec{
-				IncludedNamespaces: []string{"mysql-persistent"},
-			},
-		}, &BackupRestic{}, nil),
-		Entry("Parks application >=4.8.0", BackupRestoreCase{
-			ApplicationTemplate: "./sample-applications/parks-app/manifest4.8.yaml",
-			Name:                "parks-app",
-			BackupSpec: velero.BackupSpec{
-				IncludedNamespaces: []string{"parks-app"},
-			},
-			PreBackupVerify:   parksAppReady,
-			PostRestoreVerify: parksAppReady,
-			MinK8SVersion:     &K8sVersionOcp48,
-		}, &BackupVsl{
-			CreateFromDpa: true,
-		}, nil),
+		// 	Entry("MySQL application CSI", Label("aws"), BackupRestoreCase{
+
+		// 		ApplicationTemplate: "./sample-applications/mysql-persistent/mysql-persistent-csi-template.yaml",
+		// 		Name:                "mysql-persistent",
+		// 		BackupSpec: velero.BackupSpec{
+		// 			IncludedNamespaces: []string{"mysql-persistent"},
+		// 		},
+		// 		PreBackupVerify:   mysqlReady,
+		// 		PostRestoreVerify: mysqlReady,
+		// 	}, &BackupCsi{}, nil),
+		// 	Entry("Parks application <4.8.0", BackupRestoreCase{
+		// 		ApplicationTemplate: "./sample-applications/parks-app/manifest.yaml",
+		// 		Name:                "parks-app",
+		// 		BackupSpec: velero.BackupSpec{
+		// 			IncludedNamespaces: []string{"parks-app"},
+		// 		},
+		// 		PreBackupVerify:   parksAppReady,
+		// 		PostRestoreVerify: parksAppReady,
+		// 		MaxK8SVersion:     &K8sVersionOcp47,
+		// 	}, &BackupVsl{CreateFromDpa: false},
+		// 		nil),
+		// 	Entry("MySQL application", BackupRestoreCase{
+		// 		ApplicationTemplate: "./sample-applications/mysql-persistent/mysql-persistent-template.yaml",
+		// 		Name:                "mysql-persistent",
+		// 		PreBackupVerify:     mysqlReady,
+		// 		PostRestoreVerify:   mysqlReady,
+		// 		BackupSpec: velero.BackupSpec{
+		// 			IncludedNamespaces: []string{"mysql-persistent"},
+		// 		},
+		// 	}, &BackupRestic{}, nil),
+		// 	Entry("Parks application >=4.8.0", BackupRestoreCase{
+		// 		ApplicationTemplate: "./sample-applications/parks-app/manifest4.8.yaml",
+		// 		Name:                "parks-app",
+		// 		BackupSpec: velero.BackupSpec{
+		// 			IncludedNamespaces: []string{"parks-app"},
+		// 		},
+		// 		PreBackupVerify:   parksAppReady,
+		// 		PostRestoreVerify: parksAppReady,
+		// 		MinK8SVersion:     &K8sVersionOcp48,
+		// 	}, &BackupVsl{
+		// 		CreateFromDpa: true,
+		// 	}, nil),
 	)
 })

@@ -1,0 +1,59 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Import image to imagestream
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }}  import-image {{ item.internal_image_name }}:{{ item.internal_image_tag }} --from {{ item.external_image_name }}:{{ item.external_image_tag }} --confirm"
+  loop: "{{ image_streams }}"
+  loop_control:
+    label: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }}  import-image {{ item.internal_image_name }}:{{ item.internal_image_tag }} --from {{ item.external_image_name }}:{{ item.external_image_tag }} --confirm"
+  when: add_imagestreams |default(false)|bool
+  
+- name: Tag the imported images
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n  {{ namespace }} tag {{ item.0.internal_image_name }}:{{ item.0.internal_image_tag }}  {{ item.0.internal_image_name }}:{{ item.1.name }} --alias={{item.1.alias}}"
+  loop: "{{ image_streams|subelements('extra_tags') }}"
+  loop_control:
+    label: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n  {{ namespace }} tag {{ item.0.internal_image_name }}:{{ item.0.internal_image_tag }}  {{ item.0.internal_image_name }}:{{ item.1.name }} --alias={{item.1.alias}}"
+  when: add_istags |default(false)|bool
+
+## BZ https://bugzilla.redhat.com/show_bug.cgi?id=1820250
+#  This bug breaks the following part. Once it's fixed the pods creation should be uncommented.
+
+#- name: Create test pods to pull images
+#  k8s:
+#    host: "{{ url }}"
+#    api_key: "{{ token }}"
+#    verify_ssl: no
+#    state : present
+#    definition: "{{ lookup('template', 'testpod.yml.j2' )}}"
+#  vars:
+#    name: "usetag-{{ item.internal_image_tag }}"
+#    image: "{{ default_registry }}/{{ namespace }}/{{item.internal_image_name}}:{{item.internal_image_tag}}"
+#  loop: "{{ image_streams }}"
+#  loop_control:
+#    label: "Create pod for image {{ default_registry }}/{{ namespace }}/{{item.internal_image_name}}:{{item.internal_image_tag}}"
+ 
+#- name: Create test pods to pull extra tags
+#  k8s:
+#    host: "{{ url }}"
+#    api_key: "{{ token }}"
+#    verify_ssl: no
+#    state : present
+#    definition: "{{ lookup('template', 'testpod.yml.j2' )}}"
+#  vars:
+#    name: "usetag-{{ item.1.name }}"
+#    image: "{{ default_registry }}/{{ namespace }}/{{item.0.internal_image_name}}:{{item.1.name}}"
+#  loop: "{{ image_streams|subelements('extra_tags') }}"
+#  loop_control:
+#    label: "Create pod for image {{ default_registry }}/{{ namespace }}/{{item.0.internal_image_name}}:{{item.1.name}}"
+
+

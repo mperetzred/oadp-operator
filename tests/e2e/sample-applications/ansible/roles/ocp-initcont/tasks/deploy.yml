@@ -1,0 +1,43 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }}  new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Import image to imagestream
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }}  import-image {{ internal_image_name }}:{{ internal_image_tag }} --from {{ external_image_name }} --confirm"
+
+- name: Deploy pods using external image
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'deployment.yml.j2' )}}"
+  vars:
+    replicas: 1
+    app_name: "{{ ext_app_name }}"
+    init_image: quay.io/openshifttest/alpine:latest
+
+
+- name: Deploy pods using internal image
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'deployment.yml.j2' )}}"
+  vars:
+    replicas: 1
+    app_name: "{{ int_app_name }}"
+    init_image: "{{ default_registry }}/{{ namespace }}/{{ internal_image_name }}:{{ internal_image_tag }}"
+

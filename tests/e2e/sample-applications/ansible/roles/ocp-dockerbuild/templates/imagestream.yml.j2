@@ -1,0 +1,8 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: {{ output_imagestream }}
+  namespace: {{ namespace }}
+spec:
+  lookupPolicy:
+    local: false

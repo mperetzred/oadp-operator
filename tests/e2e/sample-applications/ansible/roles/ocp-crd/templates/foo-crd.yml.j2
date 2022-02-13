@@ -1,0 +1,11 @@
+apiVersion: {{ crd_api }}
+kind: CustomResourceDefinition
+metadata:
+  name: deploycustoms.samplecontroller.k8s.io
+spec:
+  group: samplecontroller.k8s.io
+  version: v1alpha1
+  names:
+    kind: DeployCustom
+    plural: deploycustoms
+  scope: Namespaced

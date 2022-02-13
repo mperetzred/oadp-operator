@@ -1,0 +1,50 @@
+- name: Check resources status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name={{ item }}"
+  register: pod
+  until: "true in (pod | json_query('resources[].status.containerStatuses[].ready'))"
+  retries: 60
+  delay: 10
+  with_items:
+   - "carts"
+   - "carts-db"
+   - "catalogue"
+   - "catalogue-db"
+   - "front-end"
+   - "orders"
+   - "orders-db"
+   - "payment"
+   - "queue-master"
+   - "rabbitmq"
+   - "session-db"
+   - "shipping"
+   - "user"
+   - "user-db"
+
+- name: Obtain route
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    name: "front-end"
+  register: sock_shop_route
+
+- debug:
+    msg: "Will check application at http://{{ sock_shop_route.resources[0].spec.host }}"
+
+- name: Verify that the application is available
+  uri:
+    url: "http://{{ sock_shop_route.resources[0].spec.host }}"
+    method: GET
+    return_content: yes
+  register: uri
+  until: "'socks' in uri.content"
+  retries: 6
+  delay: 10

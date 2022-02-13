@@ -1,0 +1,40 @@
+- name: Check daemon set
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: "{{ daemonset_api }}"
+    kind: DaemonSet
+    namespace: "{{ namespace }}"
+    name: "{{ daemonset.app_name }}"
+  register: ds
+  until: ds.resources | default([]) | length > 0 and ds.resources[0].status.numberMisscheduled is defined and ds.resources[0].status.numberMisscheduled == 0 
+  retries: 30
+
+- name: Check replicaset
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: "{{ replicaset_api }}"
+    kind: ReplicaSet
+    namespace: "{{ namespace }}"
+    name: "{{ replicaset.app_name }}"
+  register: rs
+  until: rs.resources | default([]) | length > 0 and rs.resources[0].status.availableReplicas is defined and rs.resources[0].status.availableReplicas == replicaset.replicas
+  retries: 30
+
+- name: Check  statefulset
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: "{{ statefulset_api }}"
+    kind: StatefulSet
+    namespace: "{{ namespace }}"
+    name: "{{ statefulset.app_name }}"
+  register: sts
+  until: sts.resources | default([]) | length > 0 and sts.resources[0].status.readyReplicas is defined and sts.resources[0].status.readyReplicas == statefulset.replicas
+  retries: 30
+
+#TODO: add checks on labels, annotations and resources.

@@ -1,0 +1,17 @@
+- name: Clean up datagird 
+  import_tasks: cleanup.yml
+  when: with_cleanup|bool
+
+- name: mirror external image
+  import_tasks: mirror_helper.yml
+  when: with_mirror|default(false)|bool
+
+- name: Create resources
+  import_tasks: deploy.yml
+  when: with_deploy|bool
+
+- name: Validate
+  import_tasks: validate.yml
+  when: with_validate|default(false)|bool
+
+

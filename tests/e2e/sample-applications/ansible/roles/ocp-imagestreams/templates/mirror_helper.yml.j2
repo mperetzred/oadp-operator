@@ -1,0 +1,30 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    name: mirrorer-{{ lookup('password', '/dev/null length=15 chars=ascii_lowercase,digits') }}
+    labels:
+      nsowner: "{{ target_image.split('/')[0] }}"
+      app: "mirrorer"
+    namespace: {{helper_namespace}}
+  spec:
+    serviceAccountName: mirror-sa
+    restartPolicy: OnFailure
+    containers:
+    - name: podtest
+      image: quay.io/sregidor/oc44:latest
+      env:
+      - name: INTERNAL_REGISTRY
+        value: {{internal_registry}}
+      - name: SOURCE_IMAGE
+        value: {{source_image}}
+      - name: TARGET_IMAGE
+        value: {{target_image}}
+      command: [ "/bin/sh", "-c", "--" ]
+      args:
+      -  "set -x; echo '{\"auths\": {\"'${INTERNAL_REGISTRY}'\": { \"auth\": \"'$(echo -n $(oc whoami | sed 's/.*://')\":\"$(oc whoami -t) | base64 -w 0)'\"}}}' > /tmp/config ;
+         oc image  mirror ${SOURCE_IMAGE} ${INTERNAL_REGISTRY}/${TARGET_IMAGE} --insecure=true --registry-config=/tmp/config --force=true;"
+         #"while true; do sleep 30; done;"
+kind: List
+metadata: {}

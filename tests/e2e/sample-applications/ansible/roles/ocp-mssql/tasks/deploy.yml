@@ -1,0 +1,12 @@
+# Fix for OCP3.7-9
+# See : https://github.com/konveyor/mig-demo-apps/issues/7
+- name: Create namespace for {{ migration_sample_name }}
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+
+- name: Deploy {{ migration_sample_name }} sample
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'manifest.yml.j2' )}}"

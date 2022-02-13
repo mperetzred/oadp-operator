@@ -1,0 +1,45 @@
+- when: cluster_version is version('4.1', '<') and not multitenant is defined
+  set_fact:
+    multitenant: true
+
+- when: not cluster_version is version('4.1', '<') and not multitenant is defined
+  block:
+    - name: Get network
+      k8s_info:
+        host: "{{ url }}"
+        api_key: "{{ token }}"
+        verify_ssl: no
+        api_version: network.openshift.io/v1
+        kind: ClusterNetwork
+        name: default
+      register: net
+      until: net.resources | length == 1
+
+    - when: net.resources[0].pluginName == 'redhat/openshift-ovs-networkpolicy'
+      set_fact:
+        multitenant: true
+
+    - when: not net.resources[0].pluginName == 'redhat/openshift-ovs-networkpolicy'
+      set_fact:
+        multitenant: false
+
+
+- when: multitenant
+  name: Create the multitenant policy
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'multitenant-policy.yml.j2' )}}"
+
+- when: not multitenant
+  name: Create the ovn policy
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace: "{{ namespace }}"
+    definition: "{{ lookup('template', 'ovn-policy.yml.j2' )}}"

@@ -1,0 +1,15 @@
+namespace: ocp-24997-confmap
+
+confmap_name: redis-config
+app_name: redis
+
+with_deploy: false
+with_validate: false
+
+# Data reported to the analytic functionality so that it is validated
+analytic_data:
+- namespace: "{{namespace}}"
+  imageCount: 0
+  resources:
+  - kind: 'configmaps'
+    count: 1

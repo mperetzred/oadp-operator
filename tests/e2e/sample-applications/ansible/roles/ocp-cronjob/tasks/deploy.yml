@@ -1,0 +1,37 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Ensure namespaces are present
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns_check
+  until: ns_check.resources | length > 0
+  retries: 6
+  delay: 5
+
+- when: with_deploy_internal_external_images|default(false)|bool
+  block:
+  - name: Create cronjob with internal and external images at the same time
+    import_tasks: deploy_with_internal_and_external_images.yml 
+
+- when: with_deploy_with_pvc|default(false)|bool
+  block:
+  - name: Create resources with pvc
+    import_tasks: deploy_with_pvc.yml
+
+
+

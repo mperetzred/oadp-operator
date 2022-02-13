@@ -1,0 +1,46 @@
+- name: Check that PVC has been staged
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: PersistentVolumeClaim
+    namespace: "{{ namespace }}"
+    label_selectors: "app=cakephp-mysql-persistent"
+  register: mysql_pvc
+  until: >-
+      mysql_pvc.resources|default([])|length == 1 and
+      mysql_pvc.resources[0].status.phase == 'Bound'
+  retries: 10
+
+- name: Check the ImageStream has been staged
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: image.openshift.io/v1
+    kind: ImageStream
+    namespace: "{{ namespace }}"
+    name: "cakephp-mysql-persistent"
+    #label_selectors: "app=cakephp-mysql-persistent"
+  register:  imagestream
+  until: >-
+      imagestream.resources|default([])|length == 1
+  retries: 10
+
+
+- name: Check that all tags have been staged
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: image.openshift.io/v1
+    kind: ImageStreamTag
+    namespace: "{{ namespace }}"
+    name: "cakephp-mysql-persistent:{{ item }}"
+  register:  imagestream
+  until: >-
+      imagestream.resources|default([])|length == 1
+  retries: 10
+  loop: "{{ all_tags|default([]) }}"
+  loop_control:
+    label: "Check that tag {{ item }} has been staged"

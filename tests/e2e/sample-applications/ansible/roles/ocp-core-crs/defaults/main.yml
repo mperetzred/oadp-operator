@@ -1,0 +1,6 @@
+operater_group_target_ns: openshift-migration
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+

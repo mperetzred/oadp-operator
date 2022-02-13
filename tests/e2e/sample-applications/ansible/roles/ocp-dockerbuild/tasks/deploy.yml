@@ -1,0 +1,44 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }}  new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Create an empty imagestream to store the ouput images
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'imagestream.yml.j2' )}}"
+
+- name: Create the buildconfig resource to create the image
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'buildconfig.yml.j2' )}}"
+
+- name: Wait for the build to be finished
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: build.openshift.io/v1
+    kind: Build
+    label_selectors: "build={{ output_imagestream }}"
+  register: dockerbuild
+  retries: 20
+  until:
+  - dockerbuild.resources|default([])|length > 0
+  - dockerbuild | json_query('resources[*].status.phase') | flatten |difference( ['Complete'] ) | length  == 0

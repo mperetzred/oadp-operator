@@ -1,0 +1,15 @@
+num_pods: 1
+
+default_replicas: "{{ num_pods }}"
+default_app_name: simple-nginx
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+apis:
+  deployment:
+    default: "apps/v1"
+    "3.7": "extensions/v1beta1"
+
+deployment_api: "{{ apis.deployment.get(cluster_version, apis.deployment.get('default')) }}"

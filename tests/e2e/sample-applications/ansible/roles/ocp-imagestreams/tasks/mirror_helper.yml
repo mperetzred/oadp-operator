@@ -1,0 +1,90 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Check helper namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ helper_namespace }}"
+  register: ns
+
+- name: Create helper namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ helper_namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Get previous mirroring pods if any
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ helper_namespace }}"
+    label_selectors: "nsowner={{namespace}}"
+  register: prevmirror
+
+- name: Delete previous mirroring pods if any
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : absent
+    kind : Pod
+    name: "{{ item.metadata.name }}"
+    namespace: "{{ item.metadata.namespace }}"
+  loop: "{{ prevmirror.resources }}"
+  loop_control:
+    label: "Deleted mirror pod {{ item.metadata.name }} from namespace {{ item.metadata.namespace }}"
+  when: prevmirror.resources | length > 0
+
+
+- name: Create Service Account
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'service_account.yml.j2' )}}"
+
+- name: Mirror image to imagestream
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'mirror_helper.yml.j2' )}}"
+  vars:
+    source_image: "{{ item.external_image_name }}:{{ item.external_image_tag }}"
+    target_image: "{{ namespace }}/{{item.internal_image_name}}:{{item.internal_image_tag}}"
+    internal_registry: "{{ default_registry }}"
+  loop: "{{ image_streams }}"
+  loop_control:
+    label: |
+           mirror:  {{ item.external_image_name }}:{{ item.external_image_tag }} 
+                --> {{ namespace }}/{{item.internal_image_name}}:{{item.internal_image_tag}}"
+
+- name: Wait until mirroring is done
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ helper_namespace }}"
+    label_selectors: "nsowner={{namespace}}"
+    field_selectors: 
+    - status.phase=Succeeded
+  register: mirrorpod
+  until: mirrorpod.get( 'resources', []) | length == image_streams | length
+  retries: 30
+  loop: "{{ image_streams }}"

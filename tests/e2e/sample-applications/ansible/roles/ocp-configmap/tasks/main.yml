@@ -1,0 +1,15 @@
+- name: Clean up namespace 
+  import_tasks: cleanup.yml
+  when: with_cleanup|default(false)|bool
+
+- name: Create resources
+  import_tasks: deploy.yml
+  when: with_deploy|bool
+
+- name: Add analytic data
+  import_tasks: add_analytic.yml
+  when: with_deploy|bool
+
+- name: Validate source
+  import_tasks: validate.yml
+  when: with_validate|bool

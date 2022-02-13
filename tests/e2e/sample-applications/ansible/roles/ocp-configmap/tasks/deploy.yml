@@ -1,0 +1,30 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} new-project {{ namespace }} --server {{ url }} --token {{ token }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Deploy configuration map
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'configmap.yml.j2' )}}"
+
+- name: Deploy redis appliation
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'deployment-redis.yml.j2' )}}"

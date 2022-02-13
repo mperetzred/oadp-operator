@@ -1,0 +1,9 @@
+apiVersion: network.openshift.io/v1
+kind: EgressNetworkPolicy
+metadata:
+  name:  {{ policy_name }}
+spec:
+  egress:
+  - to:
+      cidrSelector: {{ cidr_selector }}
+    type: {{ policy_type }}

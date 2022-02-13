@@ -1,0 +1,43 @@
+- name: Check controller pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: "true in (pod | json_query('resources[].status.containerStatuses[].ready'))"
+  retries: 30
+
+- name: Check foo Custom Resource Definition
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: CustomResourceDefinition
+    api_version: apiextensions.k8s.io/v1beta1
+    name: "deploycustoms.samplecontroller.k8s.io"
+  register: foo_crd
+  until: foo_crd.get( 'resources', []) | length > 0
+  retries: 5
+
+- name: Check foo pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app=custom-app"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: "true in (pod | json_query('resources[].status.containerStatuses[].ready'))"
+  retries: 30
+
+- pause:
+    prompt: "Wait some time until velero is aware of the new Custom Resource Definition"
+    minutes: 3

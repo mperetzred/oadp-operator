@@ -1,0 +1,27 @@
+apiVersion: v1
+items:
+- apiVersion: {{ deployment_api }}
+  kind: Deployment
+  metadata:
+    labels:
+      app: '{{ app_name }}'
+    name: '{{ app_name }}'
+
+  spec:
+    replicas: 1
+{% if deployment_api == 'apps/v1' %}
+    selector:
+      matchLabels:
+        app: {{ app_name }}
+{% endif %}
+    template:
+      metadata:
+        labels:
+          app: '{{ app_name }}'
+      spec:
+        containers:
+        - image: quay.io/openshifttest/foo-controller:latest
+          name: '{{ app_name }}'
+
+kind: List
+metadata: {}

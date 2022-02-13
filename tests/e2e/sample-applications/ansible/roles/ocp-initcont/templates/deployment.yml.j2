@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: List
+metadata: {}
+items:
+#- apiVersion: apps/v1beta1
+- apiVersion: v1
+  kind: Deployment
+  metadata:
+    name: {{ app_name }}-deployment
+    labels:
+      app: {{ app_name }}
+  spec:
+    replicas: {{ replicas }}
+    selector:
+      matchLabels:
+        app: {{ app_name }}
+    template:
+      metadata:
+        labels:
+          app: {{ app_name }}
+      spec:
+        volumes:
+        - name: html-volume
+          emptyDir: {}
+        containers:
+        - name: {{ app_name }}
+          image: quay.io/openshifttest/openshift-nginx:latest
+          ports:
+          - containerPort: 8081
+          volumeMounts:
+            - mountPath: "/usr/share/nginx/html"
+              name: html-volume
+        initContainers:
+        - name: provision-pod
+          image: {{ init_image }}
+          command: ['/bin/sh']
+          args: ['-c', "echo '<h1>HELLO WORLD</h1>' > /usr/share/nginx/html/index.html"]
+          volumeMounts:
+            - mountPath: "/usr/share/nginx/html"
+              name: html-volume
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: {{ app_name }}
+    name: {{ app_name }}-service
+  spec:
+    ports:
+    - port: 8081
+      targetPort: 8081
+    selector:
+      app: {{ app_name }}
+    type: LoadBalancer
+
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: {{ app_name }}-route
+    labels:
+      app: {{ app_name }}
+      service: {{ app_name }}-service
+  spec:
+    to:
+      kind: Service
+      name: {{ app_name }}-service
+    port:
+      targetPort: 8081
+  

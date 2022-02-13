@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ app_name }}-validate-two-pv-remove-data
+  namespace: {{ namespace }} 
+  labels:
+    app: {{ app_name }}-validate-remove 
+spec:
+  restartPolicy: OnFailure
+  containers:
+  - name: bogus 
+    image: quay.io/openshifttest/alpine:latest
+    command: [ "/bin/sh", "-c", "--" ]
+    args: 
+      - set -e;
+        echo 'Validating remove data';
+        cd /data/vol/1
+        grep "1" file || { echo 'Wrong data content in file of vol 1' && exit 1;};
+        grep "2" file && { echo 'Wrong data content in file of vol 1' && exit 1;};
+        ls file1 && { echo 'file should be deleted in vol 1' && exit 1;};
+        ls binary.sha256 || { echo 'miss file binary.sha256 in vol 1' && exit 1;};
+        ls binary.rnd || { echo 'miss file binary.rnd in vol 1' && exit 1;};
+        export SIZE=$( wc -c binary.rnd  | cut -d ' ' -f 1 );
+        [[ $SIZE  == '1048576' ]] || { echo 'Wrong binary file size in vol 1' && exit 1; };
+        export ORG_DIGEST=$(cat binary.sha256);
+        export CUR_DIGEST=$(sha256sum binary.rnd);        
+        [[ "$ORG_DIGEST" == "$CUR_DIGEST" ]] ||  { echo 'Wrong data content in binary file of vol 1' && exit 1; } ;
+        cd /data/vol/2
+        grep "1" file || { echo 'Wrong data content in file of vol 2' && exit 1;};
+        grep "2" file && { echo 'Wrong data content in file of vol 2' && exit 1;};
+        ls file1 && { echo 'file should be deleted in vol 2' && exit 1;};
+        ls binary.sha256 || { echo 'miss file binary.sha256 in vol 2' && exit 1;};
+        ls binary.rnd || { echo 'miss file binary.rnd in vol 2' && exit 1;};
+        export SIZE=$( wc -c binary.rnd  | cut -d ' ' -f 1 );
+        [[ $SIZE  == '1048576' ]] || { echo 'Wrong binary file size in vol 2' && exit 1; };
+        export ORG_DIGEST=$(cat binary.sha256);
+        export CUR_DIGEST=$(sha256sum binary.rnd);        
+        [[ "$ORG_DIGEST" == "$CUR_DIGEST" ]] ||  { echo 'Wrong data content in binary file of vol 2' && exit 1; } ;
+        exit 0;
+    volumeMounts:
+    - name: testpv1
+      mountPath: /data/vol/1
+    - name: testpv2
+      mountPath: /data/vol/2
+  volumes:
+  - name: testpv1
+    persistentVolumeClaim:
+      claimName: {{ namespace }}-pvc-1
+  - name: testpv2
+    persistentVolumeClaim:
+      claimName: {{ namespace }}-pvc-2
+
+

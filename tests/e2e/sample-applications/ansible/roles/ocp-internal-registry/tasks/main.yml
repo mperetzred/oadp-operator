@@ -1,0 +1,10 @@
+- when: with_enable_internal_registry|default(false)|bool
+  block:
+  - name: Enable internal registry
+    import_tasks: enable_internal_registry.yml
+
+- when: with_disable_internal_registry|default(false)|bool
+  block:
+  - name: Disable internal registry
+    import_tasks: disable_internal_registry.yml
+ 

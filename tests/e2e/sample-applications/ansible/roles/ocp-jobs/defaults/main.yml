@@ -1,0 +1,14 @@
+int_app_name: internal-job
+ext_app_name: external-job
+fast_app_name: fast-job
+
+internal_image_name: internal-alpine
+internal_image_tag: int
+external_image_name: quay.io/openshifttest/openshift-nginx:latest  
+
+with_cleanup: false
+with_deploy: false
+with_validate_source: false
+with_validate_target: false
+
+default_registry: "{{ 'docker-registry.default.svc:5000' if cluster_version is version('4.1', '<') else 'image-registry.openshift-image-registry.svc:5000' }}"

@@ -1,0 +1,40 @@
+namespace: ocp-24995-role
+rolebinding_name: basic-role-binding
+test_rolename: basic-role
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+apis:
+  role:
+    default: "rbac.authorization.k8s.io/v1"
+    "4.8": "rbac.authorization.k8s.io/v1beta1"
+    "4.7": "rbac.authorization.k8s.io/v1beta1"
+    "4.6": "rbac.authorization.k8s.io/v1beta1"
+    "4.5": "rbac.authorization.k8s.io/v1beta1"
+    "4.4": "rbac.authorization.k8s.io/v1beta1"
+    "4.3": "rbac.authorization.k8s.io/v1beta1"
+    "4.2": "rbac.authorization.k8s.io/v1beta1"
+    "4.1": "rbac.authorization.k8s.io/v1beta1"
+    "3.11": "rbac.authorization.k8s.io/v1beta1"
+    "3.10": "rbac.authorization.k8s.io/v1beta1"
+    "3.9": "rbac.authorization.k8s.io/v1beta1"
+    "3.7": "v1"
+  rolebinding:
+    default: "rbac.authorization.k8s.io/v1"
+    "4.8": "rbac.authorization.k8s.io/v1beta1"
+    "4.7": "rbac.authorization.k8s.io/v1beta1"
+    "4.6": "rbac.authorization.k8s.io/v1beta1"
+    "4.5": "rbac.authorization.k8s.io/v1beta1"
+    "4.4": "rbac.authorization.k8s.io/v1beta1"
+    "4.3": "rbac.authorization.k8s.io/v1beta1"
+    "4.2": "rbac.authorization.k8s.io/v1beta1"
+    "4.1": "rbac.authorization.k8s.io/v1beta1"
+    "3.11": "rbac.authorization.k8s.io/v1beta1"
+    "3.10": "rbac.authorization.k8s.io/v1beta1"
+    "3.9": "rbac.authorization.k8s.io/v1beta1"
+    "3.7": "v1"
+
+role_api: "{{ apis.role.get(cluster_version, apis.role.get('default')) }}"
+rolebinding_api: "{{ apis.rolebinding.get(cluster_version, apis.rolebinding.get('default')) }}"

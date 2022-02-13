@@ -1,0 +1,27 @@
+- name: Remove namespace {{ namespace }}
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    name: "{{ namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: absent
+    wait: yes
+    wait_timeout: 300
+ 
+
+- name: Remove namespace {{ helper_namespace }}
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    name: "{{ helper_namespace }}"
+    api_version: v1
+    kind: Namespace
+    state: absent
+    wait: yes
+    wait_timeout: 300
+# when: with_mirror|default(false)|bool
+
+ 

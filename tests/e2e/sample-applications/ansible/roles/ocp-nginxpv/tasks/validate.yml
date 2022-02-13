@@ -1,0 +1,69 @@
+- name: Check pods status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}"
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 100
+  delay: 3 
+
+- name: Obtain route
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors: "app=nginx"
+  register: nginx_route
+
+- name: Access the html file
+  uri:
+    url: http://{{ nginx_route.resources[0].spec.host }}
+    method: GET
+    status_code: 200
+  register: res
+  retries: 30
+  delay: 10
+  until: res is success
+
+- name: Get /var/log/nginx/access.log file content
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} rsh $({{ oc_binary }} --server {{ url }} --token {{ token }} get pods -n {{ namespace }} -l app={{ app_name }} -o jsonpath='{.items[0].metadata.name}') cat /var/log/nginx/access.log "
+  register: output
+  until: output.rc == 0 and output.stdout != ''
+  retries: 5
+
+- debug: msg={{ output.stdout_lines }}
+  name: /var/log/nginx/access.log file content
+
+- name: Fail if no 403 error present in nginx access.log file. There must be 1 error
+  fail:
+     msg: There should be one and only one 403 error in access.log file.
+  failed_when: 1 != ( output.stdout_lines | select('match', '.*403 153 "-" "ansible-httpget".*') | list | length )
+
+- name: Fail if no 200 code present in nginx access.log file. 
+  vars:
+    actual: "{{ output.stdout_lines | select('match', '.*200 21 \"-\" \"ansible-httpget\".*') | list | length }}"
+  fail:
+     msg: "There should be {{ expected_num_visits+1|int }} 200 codes in access.log file; actual: {{ actual }}"
+  failed_when: (expected_num_visits+1|int) !=  (actual|int)
+
+- name: Get /var/log/nginx/error.log file content
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} rsh $({{ oc_binary }} --server {{ url }} --token {{ token }} get pods -n {{ namespace }} -l app={{ app_name }} -o jsonpath='{.items[0].metadata.name}') cat /var/log/nginx/error.log "
+  register: output
+  until: output.rc == 0 and output.stdout != ''
+  retries: 5
+
+- debug: msg={{ output.stdout_lines }}
+  name: /var/log/nginx/error.log file content
+
+- name: Fail if no forbidden error present in nginx access.log file. There should be 1 error
+  fail:
+     msg: There should be one and only one forbidden error in access.log file.
+  failed_when: 1 != ( output.stdout_lines | select('match', '.*directory index of "/usr/share/nginx/html/" is forbidden.*') | list | length )

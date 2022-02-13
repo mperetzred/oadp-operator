@@ -1,0 +1,27 @@
+- name: Check pods status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Wait until service ready for connections
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} logs {{ (pod.resources|first).metadata.name }}"
+  register: result
+  until: result.stdout is search( 'socket.*/var/lib/mysql/mysql.sock.*port.*3306')
+  retries: 15
+
+# The data file contains 100 items. We verify that there are 101 lines in the stdout (100 data, plus the header)
+- name: Query the inserted data
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} exec {{ (pod.resources|first).metadata.name }} -- /bin/bash -c \"mysql -uMYSQL_USER -pMYSQL_PASSWORD MYSQL_DATABASE -e 'select * from authors'\""
+  register: result
+  until: result.rc == 0 and (result.stdout_lines | length == 101)

@@ -1,0 +1,6 @@
+project_region: west_region
+project_label:  ocp-24686-label
+
+with_cleanup: false
+with_deploy: false
+with_validate: false

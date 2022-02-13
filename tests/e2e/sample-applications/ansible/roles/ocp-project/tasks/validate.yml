@@ -1,0 +1,20 @@
+- name: Check project status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: project.openshift.io/v1
+    kind: Project
+    name: "{{ namespace }}"
+    label_selectors: "name={{ project_label }}"
+#    field_selectors: 
+#    - status.phase=Active
+  register: project
+  until: project.resources | length == 1
+  retries: 30
+
+# Label is already verified in the label selector
+- name: Verify zone
+  fail:
+     msg: "Project {{ namespace }} has no node selector configured. Project: {{ project }}"
+  when: (project.resources|first).metadata.annotations.get( 'openshift.io/node-selector','') != 'region='+project_region

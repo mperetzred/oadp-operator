@@ -1,0 +1,12 @@
+- name: Clean up old namespace
+  import_tasks: cleanup.yml
+  when: with_cleanup |default(false)|bool
+
+- name: Create resources
+  import_tasks: deploy.yml
+  when: with_deploy_internal_external_images|default(false)|bool or with_deploy_with_pvc|default(false)|bool
+
+- name: Validate
+  import_tasks: validate.yml
+  when: with_validate|default(false)|bool
+

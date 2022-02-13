@@ -1,0 +1,155 @@
+- name: Check datagrid pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "application=datagrid-service"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until : >-
+       pod.resources|default([])|length == num_dg_instances and
+       pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 40
+
+- name: Wait for hotrod-client build to finish
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: build.openshift.io/v1
+    kind: Build
+    namespace: "{{ namespace }}"
+  register: all_builds
+  retries: 20
+  delay: 10
+  until: all_builds.get('resources', []) | selectattr('status.phase', 'equalto', 'Running') | list |length == 0
+
+
+- name: Check hotrod client pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "application=hotrod-client"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until : >-
+       pod.resources|default([])|length > 0 and
+       pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 20
+  delay: 20
+
+- name: Get hotrod client route
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors: "application=hotrod-client"
+  register: hotrod_route
+  until: hotrod_route.resources|length > 0
+
+- name: Get datagrid service route
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors: "application=datagrid-service"
+  register: dg_route
+  until: dg_route.resources|length > 0
+
+
+- name: Use the hotrod client to create a cache that will be used to insert more data via hotrod
+  uri:
+    url:  http://{{ hotrod_route.resources[0].spec.host }}/datagridclient/dgcache
+    method: POST
+    body_format: form-urlencoded
+    body:
+      name: "{{ hotrod_cache_name }}"
+
+- name: Use the hotrod client to create a cache that will be used to insert more data via api rest
+  uri:
+    url:  http://{{ hotrod_route.resources[0].spec.host }}/datagridclient/dgcache
+    method: POST
+    body_format: form-urlencoded
+    body:
+      name: "{{ rest_cache_name }}"
+
+- name: Check cronjob status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "application={{ cron_name }}"
+    field_selectors:  
+    - status.phase=Succeeded 
+  register: pod
+  until: pod.resources|default([])|length > 0 
+  retries: 30
+
+- name: Insert data in the hotrod cache
+  uri:
+    url:  http://{{ hotrod_route.resources[0].spec.host }}/datagridclient/insert 
+    method: POST
+    body_format: form-urlencoded
+    body:
+      cache: "{{ hotrod_cache_name }}"
+      key: "key-{{ item }}"
+      data: "datavalue-{{ item }}"
+  register: insert_rsp
+  until: insert_rsp.status == 200
+  loop: "{{ range(0, 10)|list }}"
+  loop_control:
+    label: "Inserted -> key-{{ item }} : datavalue-{{ item }}"
+
+
+
+- name: Retrieve data inserted in the hotrod cache
+  uri:
+    url:  http://{{ hotrod_route.resources[0].spec.host }}/datagridclient/show
+    return_content: yes
+    method: POST
+    body_format: form-urlencoded
+    body:
+      cache: "{{ hotrod_cache_name }}"
+  register: hotrod_rsp
+  until: hotrod_rsp.status == 200
+
+
+- name: Retrieve inserted data from rest api (cron inserted data)
+  uri:
+    url:  https://{{ dg_route.resources[0].spec.host }}/rest/{{ rest_cache_name }}
+    return_content: yes
+    validate_certs: false
+    user: "{{ app_user }}"
+    password: "{{ app_password }}"
+    force_basic_auth: yes
+  register: rest_rsp
+  retries: 20
+  delay: 10
+  until: rest_rsp.status == 200
+
+# The data inserted is retreived from the cache with this format
+# key-{{ item }} : datavalue-{{ item }}
+# like "key-0 : datavalue-0\nkey-1 : datavalue-1\n----"
+- name: Verify hotrod inserted data
+  fail:
+     msg: The inserted data cannot be found in hotrod cache
+  when: not hotrod_rsp.content is search( "key-" + item|string + " . datavalue-" + item|string )
+  loop: "{{ range(0, 10)|list }}"
+
+- name: Verify rest inserted data
+  fail:
+     msg: The inserted data cannot be found in rest cache
+  when: rest_rsp.content.splitlines()|length == 0

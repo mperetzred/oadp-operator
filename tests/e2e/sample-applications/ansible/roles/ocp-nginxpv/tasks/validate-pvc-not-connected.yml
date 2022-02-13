@@ -1,0 +1,63 @@
+- name: Check pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}"
+  register: pod
+
+- fail:
+    msg: "There should be no pod present, before and after the migration."
+  when: pod.resources | length != 0 
+
+- name: Check route  status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors: "app=nginx"
+  register: nginx_route
+
+- fail:
+    msg: "There should be a route present, before and after the migration."
+  when: nginx_route.resources | length == 0
+
+- name: Check service status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Service 
+    namespace: "{{ namespace }}"
+    label_selectors: "app=nginx"
+  register: nginx_servive
+
+- fail:
+    msg: "There should be a service present, before and after the migration."
+  when: nginx_servive.resources | length == 0
+
+- name: Check PVCs status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: PersistentVolumeClaim 
+    namespace: "{{ namespace }}"
+    label_selectors: "app=nginx"
+  register: nginx_pvc
+
+- fail:
+    msg: "There should be two PVC present, before and after the migration."
+  when: nginx_pvc.resources | length != 2 
+
+- fail:
+    msg: "PVC {{ item.metadata.name }} should be bound, before and after the migration."
+  when: item.status.phase != 'Bound' 
+  loop: "{{ nginx_pvc.resources }}"
+  loop_control:
+    label: "check if PVC {{ item.metadata.name }} is bound in namespace {{ item.metadata.namespace }}"
+

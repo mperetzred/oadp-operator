@@ -1,0 +1,15 @@
+- name: Cleanup resources
+  import_tasks: cleanup.yml
+  when: with_cleanup|default(false)|bool
+
+- name: Create resources
+  import_tasks: deploy.yml
+  when: with_deploy|default(false)|bool
+
+- name: Create mssql SCC
+  import_tasks: create_scc.yml
+  when: with_scc|default(true)|bool
+
+- name: Validate migration
+  import_tasks: validate.yml 
+  when: with_validate|default(false)|bool

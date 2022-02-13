@@ -1,0 +1,38 @@
+num_visits: 5
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+with_validate_stage: false
+with_create_new_build: false
+with_tag_images: false
+# In order to tag images, do it like this, it needs to be a dictionary
+#  with_tag_images:
+#       latest: the_new_tag_for_latest
+#       1.2: the_new_tag_for_1.2
+#
+# Data reported to the analytic functionality so that it is validated
+analytic_data:
+- namespace: "{{namespace}}"
+  imageCount: 1
+  resources:
+  - kind: 'persistentvolumeclaims'
+    count: 1
+#  - kind: 'pods'
+#    count: 3
+  - kind: 'replicationcontrollers'
+    count: 2
+  - kind: 'services'
+    count: 2
+  - kind: 'deploymentconfigs'
+    count: 2
+  - kind: 'buildconfigs'
+    count: 1
+  - kind: 'builds'
+    count: 1
+  - kind: 'imagestreams'
+    count: 1
+  - kind: 'imagestreamtags'
+    count: 1
+  - kind: 'routes'
+    count: 1

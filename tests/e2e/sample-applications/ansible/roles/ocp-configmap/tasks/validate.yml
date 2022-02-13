@@ -1,0 +1,40 @@
+- name: Check config map 
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: ConfigMap
+    namespace: "{{ namespace }}"
+    name: "{{ confmap_name }}"
+  register: config_map
+  until: (config_map.resources | length > 0) and (config_map.resources[0].data.get("redis-config", "") != "")
+  retries: 30
+
+- name: Check redis app 
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+    - "app=={{ app_name }}"
+    field_selectors:
+    - status.phase==Running
+  register: redis
+  until: >-
+      redis.resources|default([])|length > 0 and
+      redis | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Verify max memory configuration
+  shell: "{{ oc_binary }} -n {{ namespace }} --server {{ url }} --token {{ token }} rsh {{ redis.resources[0].metadata.name }} redis-cli CONFIG GET maxmemory"
+  register: memory_command
+  until: (memory_command.stdout is search( "maxmemory" )) and  (memory_command.stdout is search( "2097152" )) 
+  retries: 5
+
+- name: Verify memory policy configuration
+  shell: "{{ oc_binary }} -n {{ namespace }} --server {{ url }} --token {{ token }} rsh {{ redis.resources[0].metadata.name }} redis-cli CONFIG GET maxmemory-policy"
+  register: memory_command
+  until: (memory_command.stdout is search( "maxmemory-policy" )) and  (memory_command.stdout is search( "allkeys-lru" ))
+  retries: 5

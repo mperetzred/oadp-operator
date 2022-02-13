@@ -1,0 +1,126 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Ensure namespaces are present
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns_check
+  until: ns_check.resources | length > 0
+  retries: 6
+  delay: 5
+
+- name: Deploy nginx nodes
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'deployment.yml.j2' )}}"
+  register: res
+  until: res is success
+  retries: 30
+  delay: 10
+  vars:
+    storage_class: "{{ src_storage_class if src_storage_class is defined else 'default' }}"
+
+- name: Check pods status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 100
+  delay: 3
+
+- name: Obtain route
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ app_name }}"
+  register: nginx_route
+  until: nginx_route.resources | length > 0
+  retries: 60
+  delay: 3
+
+- name: Force an error to log in the error.log file
+  uri:
+    url: http://{{ nginx_route.resources[0].spec.host }}
+    method: GET
+    status_code: 403
+  register: uri_output
+  retries: 20
+  until: uri_output.status != 503
+
+- name: Upload an index html file
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} rsh $( {{oc_binary}} --server {{ url }} --token {{ token }} get pods -n {{ namespace }} -o jsonpath='{.items[0].metadata.name}') sh -c 'echo \"<h1>HELLO WORLD</h1>\" > /usr/share/nginx/html/index.html'"
+
+- name: Access the html file
+  uri:
+    url: http://{{ nginx_route.resources[0].spec.host }}
+    method: GET
+    status_code: 200
+  register: res
+  retries: 30
+  delay: 10
+  until: res is success
+
+- when: with_delete_deployment|default(false)|bool 
+  block:
+  - name: Get all deployments 
+    k8s_info:
+      host: "{{ url }}"
+      api_key: "{{ admin_token }}"
+      verify_ssl: no
+      kind: Deployment 
+      namespace: "{{ namespace }}"
+    register: deployment 
+    until: deployment is success
+    retries: 6
+    delay: 5
+  
+  - name: remove deployment 
+    k8s:
+      host: "{{ url }}"
+      api_key: "{{ token }}"
+      verify_ssl: no
+      api_version: v1
+      kind: Deployment 
+      name: "{{ item.metadata.name }}"
+      namespace: "{{ item.metadata.namespace }}"
+      state: absent
+    register: dc_res
+    until: dc_res is success
+    retries: 30
+    delay: 10
+    loop: "{{ deployment.resources }}"
+    loop_control:
+      label: "Remove deployment {{ item.metadata.name }} in namespace {{ item.metadata.namespace }}"
+
+  - name: sleep 30  
+    pause:
+      seconds: 30

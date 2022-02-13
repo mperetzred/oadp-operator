@@ -1,0 +1,24 @@
+apiVersion: {{ daemonset_api }}
+kind: DaemonSet
+metadata:
+  name: {{ app_name }}
+spec:
+  selector:
+      matchLabels:
+        name: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        name: {{ app_name }}
+    spec:
+      containers:
+      - image: quay.io/openshifttest/hello-openshift:openshift
+        imagePullPolicy: Always
+        name: registry
+        ports:
+        - containerPort: 80
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+      serviceAccount: default
+      terminationGracePeriodSeconds: 10

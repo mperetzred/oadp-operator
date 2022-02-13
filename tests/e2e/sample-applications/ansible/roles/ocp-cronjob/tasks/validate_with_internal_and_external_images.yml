@@ -1,0 +1,39 @@
+- name: Check image stream
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: ImageStream
+    namespace: "{{ namespace }}"
+    name: "{{ internal_image_name }}"
+  register: imagestream
+  until: (imagestream.resources | length == 1) and (imagestream.resources[0].status.dockerImageRepository is search(internal_image_name | string))
+  retries: 30
+
+- name: Check external image pods status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "cronowner={{ ext_app_name }}"
+    field_selectors: 
+    - status.phase=Succeeded
+  register: pod
+  until: pod.resources|default([])|length > 0 
+  retries: 30
+
+- name: Check internal image pods status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "cronowner={{ int_app_name }}"
+    field_selectors: 
+    - status.phase=Succeeded
+  register: pod
+  until: pod.resources|default([])|length > 0 
+  retries: 30

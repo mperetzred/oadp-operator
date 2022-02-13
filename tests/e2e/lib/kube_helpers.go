@@ -3,11 +3,14 @@ package lib
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 
 	corev1 "k8s.io/api/core/v1"
+	v1storage "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	types "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
@@ -216,4 +219,79 @@ func isCredentialsSecretDeleted(namespace string, credSecretRef string) wait.Con
 		log.Printf("Secret still exists in namespace")
 		return false, err
 	}
+}
+
+func GetDefaultStorageClass() (*v1storage.StorageClass, error) {
+	clientset, err := setUpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	storageClassList, err := clientset.StorageV1().StorageClasses().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, storageClass := range storageClassList.Items {
+		annotations := storageClass.GetAnnotations()
+		if annotation, ok := annotations["storageclass.kubernetes.io/is-default-class"]; ok {
+			if ok && annotation == "true" {
+				return &storageClass, nil
+			}
+		}
+	}
+
+	// means no error occured, but neither found default storageclass
+	return nil, nil
+}
+
+func GetStorageClassByProvisioner(provisioner string) (*v1storage.StorageClass, error) {
+	clientset, err := setUpClient()
+	if err != nil {
+		return nil, err
+	}
+
+	storageClassList, err := clientset.StorageV1().StorageClasses().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, storageClass := range storageClassList.Items {
+		if storageClass.Provisioner == provisioner {
+				return &storageClass, nil
+			}
+	}
+
+	// means no error occured, but neither found default storageclass
+	return nil, nil
+}
+
+func SetNewDefaultStorageClass(newDefaultStorageclassName string) error {
+	defaultStorageClassAnnotation := `{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"%s"}}}`
+	patch := fmt.Sprintf(defaultStorageClassAnnotation, "false")
+
+	clientset, err := setUpClient()
+	if err != nil {
+		return err
+	}
+
+	currentDefaultStorageClass, err := GetDefaultStorageClass()
+	if err != nil {
+		return err
+	}
+	if currentDefaultStorageClass != nil {
+
+		_, err := clientset.StorageV1().StorageClasses().Patch(context.Background(),
+			currentDefaultStorageClass.Name, types.StrategicMergePatchType, []byte(patch), metav1.PatchOptions{})
+		if err != nil {
+			return err
+		}
+	}
+	patch = fmt.Sprintf(defaultStorageClassAnnotation, "true")
+	newStorageClass, err := clientset.StorageV1().StorageClasses().Patch(context.Background(),
+		newDefaultStorageclassName, types.StrategicMergePatchType, []byte(patch), metav1.PatchOptions{})
+
+	if err != nil || newStorageClass == nil {
+		return err
+	}
+
+	return nil
 }

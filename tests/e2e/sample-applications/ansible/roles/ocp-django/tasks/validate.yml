@@ -1,0 +1,76 @@
+- name: Check postgresql pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=postgresql"
+    field_selectors: 
+    - status.phase=Running
+  register: psqlpod
+  until: >-
+      psqlpod.resources|default([])|length > 0 and
+      psqlpod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 60
+
+- name: Check application pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=django-psql-persistent"
+    field_selectors: 
+    - status.phase=Running
+  register: apppod
+  until: >-
+      apppod.resources|default([])|length > 0 and
+      apppod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 60
+
+- name: Get route
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors: "app=django-psql-persistent"
+  register: app_route
+  until: app_route.resources | length > 0
+  delay: 10
+  retries: 30
+
+- name: Access the html file
+  uri:
+    url: http://{{ app_route.resources[0].spec.host }}
+    method: GET
+    status_code: 200
+    return_content: true
+  register: page_content
+  retries: 20
+  delay: 10
+  until: page_content.status == 200
+
+- set_fact:
+    expected_num_visits: "{{ num_visits if expected_num_visits is not defined else expected_num_visits }}"
+    cacheable: yes
+
+# /health uri will return the number of visits that the database has stored
+- name: Get num visits up to now
+  uri:
+    url: http://{{ app_route.resources[0].spec.host }}/health
+    method: GET
+    status_code: 200
+    return_content: true
+  register:  actual_num_visits
+  retries: 20
+  delay: 10
+  until: actual_num_visits.status == 200
+
+- name: Check num visits
+  fail:
+    msg: "# of visits should be {{ expected_num_visits }}; actual {{ actual_num_visits.content }}"
+  when: actual_num_visits.content|int != (expected_num_visits|int)

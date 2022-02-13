@@ -1,0 +1,43 @@
+helper_namespace: "mirror-helper"
+source_image: "quay.io/openshifttest/alpine:latest"
+target_image: "{{ namespace }}/test-mirror:latest"
+default_registry: "image-registry.openshift-image-registry.svc:5000"
+#default_registry: "docker-registry.default.svc:5000"
+
+image_streams:
+- external_image_name: quay.io/openshifttest/alpine
+  internal_image_name: internal-image 
+  internal_image_tag: alp 
+  external_image_tag: latest
+  extra_tags:
+  - name: tag1
+    alias: false 
+  - name: tag2
+    alias: true
+- external_image_name: quay.io/openshifttest/busybox
+  internal_image_name: internal-image 
+  internal_image_tag: busy 
+  external_image_tag: latest 
+  extra_tags:
+  - name: tag3
+    alias: false 
+  - name: latest
+    alias: false 
+  - name: tag4
+    alias: true
+
+with_deploy: false
+with_migrate: false
+with_cleanup: false
+with_validate: false
+with_mirror: false
+add_imagestreams: true
+add_istags: true
+
+apis:
+  rolebinding:
+    default: "rbac.authorization.k8s.io/v1beta1"
+    "3.7": "v1"
+
+rolebinding_api: "{{ apis.rolebinding.get(cluster_version, apis.rolebinding.get('default')) }}"
+default_registry: "{{ 'docker-registry.default.svc:5000' if cluster_version is version('4.1', '<') else 'image-registry.openshift-image-registry.svc:5000' }}"

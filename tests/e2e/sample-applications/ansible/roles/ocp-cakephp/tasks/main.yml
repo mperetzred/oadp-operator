@@ -1,0 +1,23 @@
+- name: Clean up application 
+  import_tasks: cleanup.yml
+  when: with_cleanup|default(false)|bool
+
+- name: Create resources
+  import_tasks: deploy.yml
+  when: with_deploy|bool
+
+- name: Validate source
+  import_tasks: validate.yml
+  when: with_validate|bool
+
+- name: Validate stage
+  import_tasks: validate-stage.yml
+  when: with_validate_stage|bool
+
+- name: Create a new build
+  import_tasks: build_new_image.yml
+  when: with_create_new_build|bool
+
+- name: Tag images
+  import_tasks: tag_image.yml
+  when: with_tag_images|default(false) is mapping

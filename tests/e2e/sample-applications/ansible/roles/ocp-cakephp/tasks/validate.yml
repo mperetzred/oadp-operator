@@ -1,0 +1,64 @@
+- name: Check mysql pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=mysql"
+    field_selectors: 
+    - status.phase=Running
+  register: mysqlpod
+  until: >-
+      mysqlpod.resources|default([])|length > 0 and
+      mysqlpod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 60
+
+- name: Check application pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=cakephp-mysql-persistent"
+    field_selectors: 
+    - status.phase=Running
+  register: apppod
+  until: >-
+      apppod.resources|default([])|length > 0 and
+      apppod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 60
+
+- name: Get route
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    label_selectors: "app=cakephp-mysql-persistent"
+  register: app_route
+  until: app_route.resources | length > 0
+  delay: 10
+  retries: 30
+
+- name: Access the html file
+  uri:
+    url: http://{{ app_route.resources[0].spec.host }}
+    method: GET
+    status_code: 200
+    return_content: true
+  register: page_content
+  retries: 20
+  delay: 10
+  until: page_content.status == 200
+
+- name: Get num visits up to now
+  set_fact:
+    fact_cake_num_visits: "{{ page_content.content | regex_findall('.*>([0-9]+)</span>.*') | last }}"
+
+- name: Check num visits
+  fail:
+    msg: "Num visits has not the expected value. It should be {{ expected_num_visits }} and the value retrieved was {{ fact_cake_num_visits }}"
+  when: fact_cake_num_visits|int != expected_num_visits|int

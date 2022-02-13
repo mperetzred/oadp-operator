@@ -1,0 +1,44 @@
+# Fix for OCP3.7-9
+# See : https://github.com/konveyor/mig-demo-apps/issues/7
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Deploy robot shop sample application
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'manifest.yml' )}}"
+
+
+- name: Wait for mysql pod to start running
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "service=mysql"
+    field_selectors: 
+    - status.phase=Running
+  register: mysql_pod
+  until: "true in (mysql_pod | json_query('resources[].status.containerStatuses[].ready'))"
+  retries: 30
+
+- name: Wait until mysql database initialization is done
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} logs {{ (mysql_pod.resources|first).metadata.name }}"
+  register: result
+  until: result.stdout is search( 'socket:.*sock.*port:.*3306  MySQL Community Server \\(GPL\\)')
+  retries: 15
+  delay: 40

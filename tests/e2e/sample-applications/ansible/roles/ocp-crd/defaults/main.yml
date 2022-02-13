@@ -1,0 +1,34 @@
+app_name: 'foo-crdcontroller'
+# Name of de dpeloyment created by the controller
+foo_name: 'example-deployment'
+
+#migration_sample_files: "{{ playbook_dir }}/mig-controller/docs/scenarios/{{ migration_sample_name }}"
+with_deploy: false
+with_cleanup: false
+with_validate: false
+
+apis:
+  crd:
+    default: "apiextensions.k8s.io/v1"
+    "4.8": "apiextensions.k8s.io/v1beta1"
+    "4.7": "apiextensions.k8s.io/v1beta1"
+    "4.6": "apiextensions.k8s.io/v1beta1"
+    "4.5": "apiextensions.k8s.io/v1beta1"
+    "4.4": "apiextensions.k8s.io/v1beta1"
+    "4.3": "apiextensions.k8s.io/v1beta1"
+    "4.2": "apiextensions.k8s.io/v1beta1"
+    "4.1": "apiextensions.k8s.io/v1beta1"
+    "3.11": "apiextensions.k8s.io/v1beta1"
+    "3.10": "apiextensions.k8s.io/v1beta1"
+    "3.9": "apiextensions.k8s.io/v1beta1"
+    "3.7": "apiextensions.k8s.io/v1beta1"
+  deployment:
+    default: "apps/v1"
+    "3.7": "extensions/v1beta1"
+  clusterrolebinding:
+    default: "rbac.authorization.k8s.io/v1"
+    "3.7": "v1"
+
+deployment_api: "{{ apis.deployment.get(cluster_version, apis.deployment.get('default')) }}"
+clusterrolebinding_api: "{{ apis.clusterrolebinding.get(cluster_version, apis.clusterrolebinding.get('default')) }}"
+crd_api: "{{ apis.crd.get(cluster_version, apis.crd.get('default')) }}"

@@ -1,0 +1,32 @@
+- name: Get storage classes
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: StorageClass
+  register: storage_classes
+  until: storage_classes.resources[0]  | length > 0
+
+- name: Restore original ceph storage classes
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    state: present
+    definition: "{{ scitem | combine({'metadata':{'name': scitem.metadata.name|replace('-modified', '')}, 'provisioner': scitem.provisioner | replace('xxxxxx', 'ceph')})  | to_yaml}}"
+  when: '"xxxxxx" in scitem.provisioner'
+  loop: "{{ storage_classes.resources }}"
+  loop_control:
+    loop_var: scitem
+
+- name: Delete fake ceph storage classes
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    state: absent
+    definition: "{{ scitem | to_yaml}}"
+  when: '"xxxxxx" in scitem.provisioner'
+  loop: "{{ storage_classes.resources }}"
+  loop_control:
+    loop_var: scitem

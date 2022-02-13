@@ -1,0 +1,9 @@
+apiVersion: k8s.ovn.org/v1
+kind: EgressFirewall
+metadata:
+  name:  {{ policy_name }}
+spec:
+  egress:
+  - type: {{ policy_type }}
+    to:
+      cidrSelector: {{ cidr_selector }}

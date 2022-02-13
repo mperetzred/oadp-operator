@@ -1,0 +1,15 @@
+app_name: mysql
+storage_size: 2Gi
+
+with_cleanup: false
+with_deploy: false
+with_validate: false
+
+src_storage_class: default
+pv_action: copy
+pv_copy_method: filesystem
+accessmode: ReadWriteOnce
+no_warnings_allowed: true
+
+mysql_version: latest
+image_registry: registry.redhat.io/rhel8/mysql-80

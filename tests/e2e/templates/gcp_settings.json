@@ -1,0 +1,38 @@
+{
+    "metadata": {
+      "namespace": "openshift-adp"
+    },
+    "spec": {
+        "configuration":{
+          "velero":{
+            "defaultPlugins": [
+              "openshift", "gcp"
+            ]
+          }
+        },
+        "backupLocations": [
+          {
+            "velero": {
+              "default": true,
+              "provider": "gcp",
+              
+              "objectStorage":{
+                "bucket": "gcpbucket75677"
+              }
+            }
+          }
+        ],
+        "snapshotLocations": [
+          {
+            "velero": {
+              "provider": "gcp",
+              "config": {
+                "snapshotLocation" : "us-central1",
+                "project": "openshift-qe"
+              }
+            }
+          }
+        ]
+    }
+  }
+  

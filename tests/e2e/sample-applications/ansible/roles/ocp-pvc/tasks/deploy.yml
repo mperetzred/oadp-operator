@@ -1,0 +1,53 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+ 
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+ 
+- name: Ensure namespaces are present
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns_check
+  until: ns_check.resources | length > 0
+  retries: 6
+  delay: 5
+
+- when: with_deploy_pod_with_a_ampty_pvc|default(false)|bool
+  block:
+  - name: Create a pvc
+    k8s:
+      host: "{{ url }}"
+      api_key: "{{ token }}"
+      verify_ssl: no
+      state : present
+      namespace : "{{ namespace }}"
+      definition: "{{ lookup('template', 'persistent-volume-claim.yml.j2')}}"
+    vars:
+     pvc_index: 1 
+  
+  - name: Porvision a pod mount a empty pvc
+    k8s:
+      host: "{{ url }}"
+      api_key: "{{ token }}"
+      verify_ssl: no
+      state : present
+      namespace : "{{ namespace }}"
+      definition: "{{ lookup('template', 'pod-with-a-empty-pvc.yml.j2')}}"
+    vars:
+      pvc_index: 1 
+
+  - name: sleep for a while to wait pvc bound
+    pause:
+      seconds: 20
+

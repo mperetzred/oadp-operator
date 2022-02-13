@@ -1,0 +1,16 @@
+app_name: bogus-app
+access_modes: ReadWriteOnce
+storage_size: 10Mi
+pvc_index: 1
+
+
+with_cleanup: false
+with_deploy_two_pvs_base_data: false
+with_deploy_two_pvs_add_data: false
+with_deploy_two_pvs_remove_data: false
+with_validate_two_pvs_base_data: false
+with_validate_two_pvs_add_data: false
+with_validate_two_pvs_remove_data: false
+with_before_stage_migration: false
+with_after_migrate_migration: false
+

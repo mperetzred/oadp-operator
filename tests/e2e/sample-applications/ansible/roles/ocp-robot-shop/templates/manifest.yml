@@ -1,0 +1,769 @@
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: robot-shop
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: cart
+  labels:
+    service: cart
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: cart
+{% endif %}
+  selector:
+    matchLabels:
+      service: cart
+  template:
+    metadata:
+      labels:
+        service: cart
+    spec:
+      containers:
+      - name: cart
+        image: robotshop/rs-cart:latest
+        # agent networking access 
+        env:
+          - name: INSTANA_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    service: cart
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: catalogue
+  labels:
+    service: catalogue
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: catalogue
+{% endif %}
+  selector:
+    matchLabels:
+      service: catalogue
+  template:
+    metadata:
+      labels:
+        service: catalogue
+    spec:
+      containers:
+      - name: catalogue
+        image: robotshop/rs-catalogue:latest
+        env:
+          - name: INSTANA_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: catalogue
+  name: catalogue
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    service: catalogue
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: dispatch
+  labels:
+    service: dispatch
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      serivce: dispatch
+{% endif %}
+  selector:
+    matchLabels:
+      service: dispatch
+  template:
+    metadata:
+      labels:
+        service: dispatch
+    spec:
+      containers:
+      - name: dispatch
+        image: robotshop/rs-dispatch:latest
+        env:
+          # agent networking access
+          - name: INSTANA_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dispatch
+  labels:
+    service: dispatch
+  namespace: {{ namespace }}
+spec:
+  clusterIP: None
+  ports:
+  - name: headless
+    port: 55555
+    targetPort: 0
+  selector:
+    service: dispatch
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: mongodb
+  labels:
+    service: mongodb
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: mongodb
+{% endif %}
+  selector:
+    matchLabels:
+      service: mongodb
+  template:
+    metadata:
+      labels:
+        service: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: robotshop/rs-mongodb:latest
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - mountPath: "/data/db"
+          name: mongodb-volume
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+      restartPolicy: Always
+      volumes:
+      - name: mongodb-volume
+        persistentVolumeClaim:
+          claimName: mongodb-volume-claim
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-volume-claim
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+{% if src_storage_class is defined and src_storage_class != 'default'  %}
+  storageClassName: {{ src_storage_class | quote }}
+{% endif %}
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: mongodb
+  name: mongodb
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: mongo
+    port: 27017
+    targetPort: 27017
+  selector:
+    service: mongodb
+
+---
+apiVersion: v1
+kind: DeploymentConfig
+metadata:
+  name: mysql
+  labels:
+    service: mysql
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+  selector:
+    service: mysql
+  template:
+    metadata:
+      labels:
+        service: mysql
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - name: mysql
+        image: 'quay.io/sregidor/robot-shop-mysql:5.7'
+        # The lost+found info included by some storage classes break the mysql initialization.
+        # We need to tell mysql to ignore it.
+        args:
+          - "--ignore-db-dir=lost+found"
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_USER
+          value: shipping
+        - name: MYSQL_PASSWORD
+          value: secret
+        - name: MYSQL_DATABASE
+          value: cities
+        - name: MYSQL_ROOT_PASSWORD
+          value: R00t@123
+        resources:
+          limits:
+            cpu: 200m
+            memory: 800Mi
+          requests:
+            cpu: 100m
+            memory: 400Mi
+        volumeMounts:
+        - mountPath: "/var/lib/mysql"
+          name: mysql-data-volume
+      restartPolicy: Always
+      volumes:
+      - name: mysql-data-volume
+        persistentVolumeClaim:
+          claimName: mysql-data-volume-claim
+  triggers:
+  - type: ConfigChange
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-data-volume-claim
+  namespace: {{ namespace }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+{% if src_storage_class is defined and src_storage_class != 'default'  %}
+  storageClassName: {{ src_storage_class | quote }}
+{% endif %}
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: mysql
+  name: mysql
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+  selector:
+    service: mysql
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: payment
+  labels:
+    service: payment
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: payment
+{% endif %}
+  selector:
+    matchLabels:
+      service: payment
+  template:
+    metadata:
+      labels:
+        service: payment
+    spec:
+      containers:
+      - name: payment
+        image: docker.io/pranavgaikwad/robot-shop-payment:latest
+        # agent networking access
+        env:
+          - name: INSTANA_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment
+  labels:
+    service: payment
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    service: payment
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: rabbitmq
+  labels:
+    service: rabbitmq
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: rabbitmq
+{% endif %}
+  selector:
+    matchLabels:
+      service: rabbitmq
+  template:
+    metadata:
+      labels:
+        service: rabbitmq
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.7-management-alpine
+        ports:
+        - containerPort: 5672
+        - containerPort: 15672
+        resources:
+          limits:
+            cpu: 200m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  labels:
+    service: rabbitmq
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: tcp-amqp
+    port: 5672
+    targetPort: 5672
+  - name: http-management
+    port: 15672
+    targetPort: 15672
+  - name: tcp-epmd
+    port: 4369
+    targetPort: 4369
+  selector:
+    service: rabbitmq
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: ratings
+  labels:
+    service: ratings
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: ratings
+{% endif %}
+  selector:
+    matchLabels:
+      service: ratings
+  template:
+    metadata:
+      labels:
+        service: ratings
+    spec:
+      containers:
+      - name: ratings
+        image: docker.io/pranavgaikwad/robot-shop-ratings:latest
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ratings
+  labels:
+    service: ratings
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    service: ratings
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  labels:
+    service: redis
+  name: redis
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: redis
+{% endif %}
+  selector:
+    matchLabels:
+      service: redis
+  template:
+    metadata:
+      labels:
+        service: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:4.0.6
+        ports:
+        - containerPort: 6379
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        volumeMounts:
+        - mountPath: "/data"
+          name: redis-volume
+      restartPolicy: Always
+      volumes:
+      - name: redis-volume
+        persistentVolumeClaim:
+          claimName: redis-volume-claim
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: {{ namespace }}
+  name: redis-volume-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+{% if src_storage_class is defined and src_storage_class != 'default'  %}
+  storageClassName: {{ src_storage_class | quote }}
+{% endif %}
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: redis
+  name: redis
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: 6379
+  selector:
+    service: redis
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: shipping
+  labels:
+    service: shipping
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: shipping
+{% endif %}
+  selector:
+    matchLabels:
+      service: shipping
+  template:
+    metadata:
+      labels:
+        service: shipping
+    spec:
+      containers:
+      - name: shipping
+        image: robotshop/rs-shipping:latest
+        ports:
+        - containerPort: 8080
+        # it's Java it needs lots of memory
+        resources:
+          limits:
+            cpu: 200m
+            memory: 1000Mi
+          requests:
+            cpu: 100m
+            memory: 500Mi
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shipping
+  labels:
+    service: shipping
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    service: shipping
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: user
+  labels:
+    service: user
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: user
+{% endif %}
+  selector:
+    matchLabels:
+      service: user
+  template:
+    metadata:
+      labels:
+        service: user
+    spec:
+      containers:
+      - name: user
+        image: robotshop/rs-user:latest
+        env:
+          # agent networking access
+          - name: INSTANA_AGENT_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user
+  labels:
+    service: user
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    service: user
+
+---
+apiVersion: {{ deployment_api }}
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    service: web
+  namespace: {{ namespace }}
+spec:
+  replicas: 1
+{% if deployment_api == 'apps/v1' %}
+  selector:
+    matchLabels:
+      service: web
+{% endif %}
+  selector:
+    matchLabels:
+      service: web
+  template:
+    metadata:
+      labels:
+        service: web
+    spec:
+      containers:
+      - name: web
+        image: docker.io/pranavgaikwad/robot-shop-nginx:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 200m
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 50Mi
+        # securityContext:
+        #   privileged: true
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: Route
+metadata:
+  name: front-end
+  namespace: {{ namespace }}
+spec:
+  path: "/"
+  port:
+    targetPort: http
+  to:
+    kind: Service
+    name: web
+
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  labels:
+    service: web
+  namespace: {{ namespace }}
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+  selector:
+    service: web
+

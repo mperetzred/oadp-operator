@@ -1,0 +1,11 @@
+- name: Cleanup resources
+  import_tasks: cleanup.yml
+  when: with_cleanup|bool
+
+- name: Create resources
+  import_tasks: deploy.yml
+  when: with_deploy|bool
+
+- name: Validate CRD
+  import_tasks: validate.yml
+  when: with_validate|bool

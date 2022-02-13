@@ -1,0 +1,50 @@
+- name: Check {{ migration_sample_name }} resources status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ item }}"
+  register: pod
+  until: "true in (pod | json_query('resources[].status.containerStatuses[].ready'))"
+  retries: 90
+  delay: 10
+  with_items:
+    - "mssql"
+    - "mssql-app"
+
+- name: Obtain {{ migration_sample_name }} route
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Route
+    namespace: "{{ namespace }}"
+    name: "mssql-app-route"
+  register: mssql_app_route
+
+- debug:
+    msg: "Will check {{ migration_sample_name }} at http://{{ mssql_app_route.resources[0].spec.host }}"
+
+- name: Verify {{ migration_sample_name }} is available
+  uri:
+    url: "http://{{ mssql_app_route.resources[0].spec.host }}"
+    method: GET
+    return_content: yes
+  register: uri
+  until: "'Staging' in uri.content"
+  retries: 30
+  delay: 10
+
+- name: Obtain {{ migration_sample_name }} SCC
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: SecurityContextConstraints
+    name: "{{ namespace }}-scc"
+  register: mssql_app_scc
+  retries: 20
+  delay: 5
+

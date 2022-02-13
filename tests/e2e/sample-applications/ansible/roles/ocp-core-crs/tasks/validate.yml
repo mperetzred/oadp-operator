@@ -1,0 +1,32 @@
+- name: check hello-openshift pod
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    field_selectors:
+    - status.phase=Running
+  register: pod
+  retries: 20
+  until: pod.resources | length > 0
+
+- fail:
+    msg: "There should be only one pod present, before and after the migration."
+  when: pod.resources | length != 1 
+
+- name: check core OpenShift 4.x CR -- InstallPlan 
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: operators.coreos.com/v1alpha1
+    kind: InstallPlan 
+    namespace: "{{ namespace }}"
+  register: crs
+  retries: 20
+  until: crs.resources | length > 0
+
+- fail:
+    msg: "There should be one core OpenShift 4.x CR -InstallPlan present, before and after the migration."
+  when: crs.resources | length == 0

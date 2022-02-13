@@ -1,0 +1,37 @@
+app_name: nginx
+storage_size: 1Gi
+
+
+with_deploy: false
+with_cleanup: false
+with_validate: false
+with_delete_deployment: false
+with_delete_pvcs: false
+
+logs_accessmode: ReadWriteOnce
+html_accessmode: ReadWriteOnce
+
+apis:
+  deployment:
+    default: "apps/v1"
+    "3.7": "extensions/v1beta1"
+
+deployment_api: "{{ apis.deployment.get(cluster_version, apis.deployment.get('default')) }}"
+
+# Data reported to the analytic functionality so that it is validated
+analytic_data:
+- namespace: "{{namespace}}"
+  imageCount: 0
+  resources:
+  - count: 2
+    kind: persistentvolumeclaims
+#  - count: 1
+#    kind: pods
+  - count: 1
+    kind: services
+  - count: 1
+    kind: deployments
+  - count: 1
+    kind: replicasets
+  - count: 1
+    kind: routes

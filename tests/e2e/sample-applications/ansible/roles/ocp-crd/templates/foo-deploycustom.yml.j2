@@ -1,0 +1,9 @@
+apiVersion: samplecontroller.k8s.io/v1alpha1
+kind: DeployCustom
+metadata:
+  name: '{{ foo_name }}'
+spec:
+  deploymentName: '{{ foo_name }}'
+  replicas: 1
+  #image: docker.io/nginx:latest
+  image: quay.io/openshifttest/openshift-nginx:latest

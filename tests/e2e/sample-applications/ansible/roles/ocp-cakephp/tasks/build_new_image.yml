@@ -1,0 +1,52 @@
+- name: Build a new image
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} start-build cakephp-mysql-persistent --wait=true"
+
+- name: Wait for the application to  be ready again
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=cakephp-mysql-persistent"
+    field_selectors: 
+    - status.phase=Running
+  register: apppod
+  until: >-
+      apppod.resources|default([])|length == 1 and
+      apppod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 60
+
+- name: Remove the application pod to make sure that we use the new image
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    name: "{{ apppod.resources[0].metadata.name }}"
+    state: absent
+
+- name: Wait for the application to  be ready again
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=cakephp-mysql-persistent"
+    field_selectors: 
+    - status.phase=Running
+  register: apppod
+  until: >-
+      apppod.resources|default([])|length == 1 and
+      apppod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 60
+
+# Update analytic data
+- name: Set analytic data
+  set_fact:
+    analytic_data_validation: "{{ analytic_data_validation|default([]) + [{'namespace':namespace, 'imageCount':1, 'resources':[]}] }}"
+  delegate_to: "{{ groups['controller_cluster']|first }}"
+  delegate_facts: true
+

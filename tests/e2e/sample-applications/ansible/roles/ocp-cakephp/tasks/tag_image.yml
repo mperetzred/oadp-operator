@@ -1,0 +1,5 @@
+- name: Tag image
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} tag cakephp-mysql-persistent:{{ item }} cakephp-mysql-persistent:{{ with_tag_images.get(item) }}"
+  loop: "{{ with_tag_images.keys()|sort }}"
+  loop_control:
+    label: "Tag cakephp-mysql-persistent image {{ item }} with tag {{ with_tag_images.get(item) }}"

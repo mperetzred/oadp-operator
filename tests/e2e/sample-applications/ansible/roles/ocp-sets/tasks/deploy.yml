@@ -1,0 +1,47 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} adm new-project {{ namespace }} --node-selector=''"
+  when: ns.resources | length == 0
+
+- name: Deploy daemonset
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'deployment-daemonset.yml.j2' )}}"
+  vars:
+    app_name: "{{ daemonset.app_name }}"
+
+- name: Deploy replicaset
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'deployment-replicaset.yml.j2' )}}"
+  vars:
+    app_name: "{{ replicaset.app_name }}"
+    replicas: "{{ replicaset.replicas }}"
+
+- name: Deploy statefulset
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'deployment-statefulset.yml.j2' )}}"
+  vars:
+    app_name: "{{ statefulset.app_name }}"
+    replicas: "{{ statefulset.replicas }}"

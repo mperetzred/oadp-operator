@@ -1,0 +1,31 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} new-project  --server {{ url }} --token {{ token }} {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Allow namespace to settle
+  pause:
+    seconds: 5
+
+# Deal with slow performing clusters/glusterfs
+# - name: Dump openshift cake-php application from openshift templates
+#   shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} new-app cakephp-mysql-persistent -o yaml > {{ playbook_dir }}/cakephp-mysql-persistent.yml"
+
+# - name: Modify cake-php liveness probe
+#   shell: "sed -i -e /initialDelaySeconds/s/30/60/g {{ playbook_dir }}/cakephp-mysql-persistent.yml"
+
+- name: Create openshift cake-php application from openshift templates
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} create -f {{ role_path }}/files/cakephp-mysql-persistent.yml"
+
+# - name: Remove cake-php template file
+#   file:
+#     path: "{{ playbook_dir }}/cakephp-mysql-persistent.yml"
+#     state: absent

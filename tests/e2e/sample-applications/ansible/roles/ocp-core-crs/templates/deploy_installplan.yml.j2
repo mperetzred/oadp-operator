@@ -1,0 +1,16 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: InstallPlan
+metadata:
+  generateName: install-
+  generation: 1
+  name: bogus-install-plan 
+  namespace:  {{ namespace }} 
+spec:
+  approval: Automatic
+  approved: true
+  clusterServiceVersionNames:
+  - bogus-operator.v1.0.0
+  generation: 1
+
+
+

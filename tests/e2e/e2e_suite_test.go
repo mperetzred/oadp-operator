@@ -18,12 +18,12 @@ var namespace, instanceName, settings, cloud, clusterProfile, credSecretRef stri
 var timeoutMultiplier time.Duration
 
 func init() {
-	flag.StringVar(&cloud, "cloud", "/home/mperetz/git/oadp-operator/awscreds", "Cloud Credentials file path location")
-	flag.StringVar(&namespace, "velero_namespace", "velero", "Velero Namespace")
-	flag.StringVar(&settings, "settings", "/tmp/test-settings/awscreds", "Settings of the velero instance")
+	flag.StringVar(&cloud, "cloud", "/tmp/awscreds", "Cloud Credentials file path location")
+	flag.StringVar(&namespace, "velero_namespace", "openshift-adp", "Velero Namespace")
+	flag.StringVar(&settings, "settings", "/tmp/test-settings/gcp_settings.json", "Settings of the velero instance")
 	flag.StringVar(&instanceName, "velero_instance_name", "example-velero", "Velero Instance Name")
-	flag.StringVar(&clusterProfile, "cluster_profile", "aws", "Cluster profile")
-	flag.StringVar(&credSecretRef, "creds_secret_ref", "cloud-credentials", "Credential secret ref for backup storage location")
+	flag.StringVar(&clusterProfile, "cluster_profile", "gcp", "Cluster profile")
+	flag.StringVar(&credSecretRef, "creds_secret_ref", "cloud-credentials-gcp", "Credential secret ref for backup storage location")
 
 	timeoutMultiplierInput := flag.Int64("timeout_multiplier", 1, "Customize timeout multiplier from default (1)")
 	timeoutMultiplier = 1

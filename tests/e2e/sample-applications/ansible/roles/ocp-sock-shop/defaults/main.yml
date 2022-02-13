@@ -1,0 +1,13 @@
+with_cleanup: false
+with_deploy: false
+with_cleanup: false
+with_validate: false
+
+apis:
+  deployment:
+    default: "apps/v1"
+    "3.7": "extensions/v1beta1"
+
+deployment_api: "{{ apis.deployment.get(cluster_version, apis.deployment.get('default')) }}"
+
+mysql_version: 5.7

@@ -1,0 +1,19 @@
+- when: with_deploy_pod_with_a_ampty_pvc|default(false)|bool
+  block:
+  - name: Check PVCs status
+    k8s_info:
+      host: "{{ url }}"
+      api_key: "{{ token }}"
+      verify_ssl: no
+      kind: PersistentVolumeClaim 
+      namespace: "{{ namespace }}"
+      label_selectors: "app={{ app_name }}"
+    register: app_pvc
+  
+  - fail:
+      msg: "PVC {{ item.metadata.name }} should be bound, before and after the migration."
+    when: item.status.phase != 'Bound' 
+    loop: "{{ app_pvc.resources }}"
+    loop_control:
+      label: "check if PVC {{ item.metadata.name }} is bound in namespace {{ item.metadata.namespace }}"
+

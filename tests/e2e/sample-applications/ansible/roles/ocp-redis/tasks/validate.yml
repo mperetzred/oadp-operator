@@ -1,0 +1,26 @@
+- name: Check redis pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=redis"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 60
+
+- name: Retrieve and validate inserted data
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} exec {{ (pod.resources|first).metadata.name }} -- /bin/bash -c \"redis-cli -a {{ redis_password }} get mytestkey\""
+  register: output
+  until: output.rc == 0 and output.stdout != ''
+  delay: 10
+  retries: 12
+
+- fail:
+    msg: "Inserted data not present"
+  when: not (output.stdout is search("Hello world"))

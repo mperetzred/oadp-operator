@@ -1,0 +1,34 @@
+- name: Check Role
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: "{{ role_api }}"
+    kind: Role
+    namespace: "{{ namespace }}"
+    name: "{{ test_rolename }}"
+  register: rolenm
+  until: rolenm.resources | length > 0
+  retries: 30
+
+- name: Check RoleBinding
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    api_version: "{{ rolebinding_api }}"
+    kind: RoleBinding
+    name: "{{ rolebinding_name }}"
+    namespace: "{{ namespace }}"
+  register: role_binding
+  until: role_binding.resources | length > 0
+  retries: 30
+
+- fail:
+    msg: Wrong namespace in rolebinding roleRef
+  # Depending on the api version the 'namespace' attribut will not be present in the roleRef. If not present we dont fail.
+  when: role_binding.resources[0].get('roleRef', {}).get('namespace', namespace) != namespace
+
+- fail:
+    msg: Wrong namespace in rolebinding service account
+  when: role_binding.resources[0].get('subjects')[0].get('namespace','') != namespace

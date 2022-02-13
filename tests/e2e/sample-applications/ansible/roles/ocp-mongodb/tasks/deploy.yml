@@ -1,0 +1,53 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} new-project {{ namespace }} --server {{ url }} --token {{ token }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Create the mtc test mongodb persistent template
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'mtc-test-mongodb-persistent-template.yml.j2' )}}"
+
+- name: Create openshift mongodb application from openshift templates
+  shell: >-
+       {{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} new-app --template mtc-test-mongodb-persistent 
+       -p MONGODB_USER={{ mongodb_user }} 
+       -p MONGODB_PASSWORD={{ mongodb_pass }}
+
+- name: Check mongodb pod status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "name=mongodb"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 40
+
+- name: Copy mongodb provision script to pod
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} cp {{ role_path }}/files/mongodb.js {{ (pod.resources|first).metadata.name }}:/tmp/mongodb.js"
+  register: result
+  until: result.rc == 0
+
+- name: Load data in mongodb database
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} exec {{ (pod.resources|first).metadata.name }} -- /bin/bash -c \"mongo sampledb -u {{ mongodb_user }} -p {{ mongodb_pass }} < /tmp/mongodb.js\""
+  register: output
+  until: output.rc == 0 and output.stdout != ''
+  retries: 5

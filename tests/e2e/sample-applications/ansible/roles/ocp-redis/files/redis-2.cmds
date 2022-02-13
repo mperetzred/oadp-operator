@@ -1,0 +1,1 @@
+hmset user:1000 username aftermiguser birthyear 1977 verified 1

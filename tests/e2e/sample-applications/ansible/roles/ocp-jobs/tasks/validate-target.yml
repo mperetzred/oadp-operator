@@ -1,0 +1,98 @@
+- name: Check image stream
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: ImageStream
+    namespace: "{{ namespace }}"
+    name: "{{ internal_image_name }}"
+  register: imagestream
+  until: (imagestream.resources | length == 1) and (imagestream.resources[0].status.dockerImageRepository is search(internal_image_name | string))
+  retries: 30
+
+- name: Check external image job status. Must be active.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Job
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ ext_app_name }}"
+  register: job
+  until: job.resources | length > 0 and job.resources[0].status.active == 1
+  retries: 30
+
+- name: Check internal image job status. Must be active.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Job
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ int_app_name }}"
+  register: job
+  until: job.resources | length > 0 and job.resources[0].status.active == 1
+  retries: 30
+
+- name: Check fast job status. Must not be present.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Job
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ fast_app_name }}"
+  register: job
+
+- fail:
+    msg: Fast job should not be migrated
+  when: job.resources | length > 0
+
+- name: Check external image nodes status. Must be running.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ ext_app_name }}"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Check internal image nodes status. Must be running.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ int_app_name }}"
+    field_selectors: 
+    - status.phase=Running
+  register: pod
+  until: >-
+      pod.resources|default([])|length > 0 and
+      pod | json_query('resources[*].status.containerStatuses[*].ready') | flatten |difference( [true] ) | length  == 0
+  retries: 30
+
+- name: Check fast nodes status. Must not be present.
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ fast_app_name }}"
+  register: pod
+
+- fail: 
+    msg: Fast node should not be migrated
+  when: pod.resources | length > 0
+
+
+#TODO: when possible, check that original jobs have been quiesced.

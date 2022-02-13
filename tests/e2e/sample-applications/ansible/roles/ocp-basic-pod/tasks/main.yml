@@ -1,0 +1,28 @@
+- name: Clean up bogus application 
+  import_tasks: cleanup.yml
+  when: with_cleanup|default(false)|bool
+
+- name: Create bogus application with base data 
+  import_tasks: deploy_pod_two_pvs_base_data.yml
+  when: with_deploy_two_pvs_base_data|default(false)|bool
+
+- name: Add data to bogus application 
+  import_tasks: deploy_pod_two_pvs_add_data.yml 
+  when: with_deploy_two_pvs_add_data|default(false)|bool
+
+- name: Remove data from bogus application 
+  import_tasks: deploy_pod_two_pvs_remove_data.yml
+  when: with_deploy_two_pvs_remove_data|default(false)|bool
+
+- name: Validate application with base data
+  import_tasks: validate_pod_two_pvs_base_data.yml 
+  when: with_validate_two_pvs_base_data|default(false)|bool 
+
+- name: Validate application after adding data
+  import_tasks: validate_pod_two_pvs_add_data.yml
+  when: with_validate_two_pvs_add_data |default(false)|bool
+
+- name: Validate application after removing data
+  import_tasks: validate_pod_two_pvs_remove_data.yml
+  when: with_validate_two_pvs_remove_data |default(false)|bool
+

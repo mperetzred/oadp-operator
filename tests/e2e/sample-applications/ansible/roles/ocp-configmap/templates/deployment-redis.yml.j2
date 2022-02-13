@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: DeploymentConfig
+metadata:
+  name: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      containers:
+      - name:  {{ app_name }}
+        image: quay.io/openshifttest/redis_alpine:latest
+        args: ["redis-server","/redis-master/redis.conf"]
+        env:
+        - name: MASTER
+          value: "true"
+        ports:
+        - containerPort: 6379
+        resources:
+          limits:
+            cpu: "0.1"
+        volumeMounts:
+        - mountPath: /redis-master-data
+          name: data
+        - mountPath: /redis-master
+          name: config
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: {{ confmap_name }}
+            items:
+            - key: redis-config
+              path: redis.conf
+

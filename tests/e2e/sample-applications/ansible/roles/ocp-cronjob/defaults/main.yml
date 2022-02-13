@@ -1,0 +1,24 @@
+int_app_name: internal-cronjob
+ext_app_name: external-cronjob
+
+internal_image_name: internal-alpine
+internal_image_tag: int
+external_image_name: quay.io/openshifttest/alpine:latest
+
+with_cleanup: false
+
+with_deploy_internal_external_images: false
+with_deploy_with_pvc: false
+
+with_validate: false
+
+with_validate_internal_external_images: false
+with_validate_with_pvc: false
+
+apis:
+  cronjob:
+    default: "batch/v1beta1"
+    "3.7": "batch/v2alpha1"
+
+cronjob_api: "{{ apis.cronjob.get(cluster_version, apis.cronjob.get('default')) }}"
+default_registry: "{{ 'docker-registry.default.svc:5000' if cluster_version is version('4.1', '<') else 'image-registry.openshift-image-registry.svc:5000' }}"

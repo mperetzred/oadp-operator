@@ -1,0 +1,11 @@
+with_deploy: false
+with_validate_source: false
+with_validate_target: false
+
+docker_image: centos
+docker_image_tag: 7
+docker_file: |
+      FROM quay.io/centos/centos:latest 
+      RUN yum install -y httpd
+
+output_imagestream: centos

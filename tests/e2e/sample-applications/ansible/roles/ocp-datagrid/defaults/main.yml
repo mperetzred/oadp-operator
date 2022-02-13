@@ -1,0 +1,32 @@
+num_dg_instances: 1
+app_password: changeme
+app_user: test
+hotrod_client_sourcecode: "{{ role_path }}/files/hotrod_client_app_template.yml"
+cronjob_insert_sourcecode: "{{ role_path }}/files/cronjob_app_template.yml"
+cron_name: rest-insert
+rest_cache_name: "restcache"
+hotrod_cache_name: "hotrodcache"
+
+
+with_deploy: false
+with_cleanup: false
+with_validate_source: false
+with_validate_target: false
+
+
+apis:
+  cronjob:
+    default: "batch/v1beta1"
+    "3.7": "batch/v2alpha1"
+  statefulset:
+    default: "apps/v1"
+    "3.7": "apps/v1beta1"
+    "3.9": "apps/v1beta1"
+    "3.10": "apps/v1beta1"
+    "3.11": "apps/v1beta1"
+    "4.1": "apps/v1beta1"
+    "4.2": "apps/v1beta1"
+    "4.3": "apps/v1beta1"
+
+cronjob_api: "{{ apis.cronjob.get(cluster_version, apis.cronjob.get('default')) }}"
+statefulset_api: "{{ apis.statefulset.get(cluster_version, apis.statefulset.get('default')) }}"

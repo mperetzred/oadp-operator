@@ -1,0 +1,9 @@
+- when: with_validate_internal_external_images|default(false)|bool
+  block:
+  - name: Validate cronjob deployed by internal and external images at the same time
+    import_tasks: validate_with_internal_and_external_images.yml
+
+- when: with_validate_with_pvc|default(false)|bool
+  block:
+  - name: Validate cronjob deployed with pvc
+    import_tasks: validate_with_pvc.yml 

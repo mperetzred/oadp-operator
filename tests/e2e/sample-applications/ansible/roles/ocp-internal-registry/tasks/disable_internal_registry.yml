@@ -1,0 +1,12 @@
+- name: Disable internal registry. 3x cluster.
+  shell:  "{{ oc_binary }} --server {{ url }} --token {{ admin_token }} scale --replicas=0 dc docker-registry -n default"
+  register: disable3_command
+  until: disable3_command.rc == 0
+  when: cluster_version is version('4.1', '<')
+
+- name: Disable internal registry. 4x cluster.
+  shell:  >-
+     {{ oc_binary }} --server {{ url }} --token {{ admin_token }} patch configs.imageregistry.operator.openshift.io cluster -p '{"spec":{"managementState": "Removed"} }' --type='merge'; 
+  register: disable3_command
+  until: disable3_command.rc == 0
+  when: not cluster_version is version('4.1', '<')

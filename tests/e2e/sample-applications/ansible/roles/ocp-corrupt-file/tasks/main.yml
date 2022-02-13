@@ -1,0 +1,25 @@
+- name: Create Pod To Corrupt Volume
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'pod-corrupter.yml.j2')}}"
+
+- name: Check Corruptor Pod is Running
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors:
+    - "app=={{ app_name }}"
+    field_selectors:
+    - status.phase==Running
+  register: corruptor
+  until: corruptor.resources|default([])|length > 0
+  retries: 30
+
+

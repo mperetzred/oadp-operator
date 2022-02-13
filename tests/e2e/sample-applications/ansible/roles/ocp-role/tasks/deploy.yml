@@ -1,0 +1,27 @@
+- name: Create namespace for {{ namespace }}
+  shell: "{{ oc_binary }} new-project {{ namespace }} --server {{ url }} --token {{ token }} --skip-config-write=true"
+
+
+- name: Ensure namespace is present
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns_check
+  until: ns_check.resources | length > 0
+  retries: 6
+  delay: 5
+
+- debug:
+    msg: "{{ lookup('template', 'basic-sa-role-template.yml.j2' )}}"
+
+- name: Deploy Role and RoleBinding
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    namespace : "{{ namespace }}"
+    definition: "{{ lookup('template', 'basic-sa-role-template.yml.j2' )}}"

@@ -1,0 +1,24 @@
+- name: Check namespace
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ admin_token }}"
+    verify_ssl: no
+    kind: Namespace
+    name: "{{ namespace }}"
+  register: ns
+
+- name: Create namespace
+  shell: "{{ oc_binary }} --server {{ url }} --token {{ token }} new-project {{ namespace }} --skip-config-write=true"
+  when: ns.resources | length == 0
+
+- name: Create the mtc test django psql persistent template
+  k8s:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    state : present
+    definition: "{{ lookup('template', 'django-psql-persistent-template.yml.j2' )}}"
+
+- name: Create openshift django psql persisten application from openshift templates
+  shell: >-
+       {{ oc_binary }} --server {{ url }} --token {{ token }} -n {{ namespace }} new-app --template mtc-test-django-psql-persistent

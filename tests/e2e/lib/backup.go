@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/openshift/oadp-operator/tests/e2e/utils"
 	velero "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
+	v1storage "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
@@ -102,9 +103,11 @@ func (b *backup) IsBackupCompletedSuccessfully() (bool, error) {
 type BackupCsi struct {
 	backup
 	vsc *v1.VolumeSnapshotClass
+	dsc *v1storage.StorageClass
 }
 
 func (b *BackupCsi) PrepareBackup() error {
+
 	snapshotClient, _ := SetUpSnapshotClient()
 	csiClient, _ := GetCsiDriversList()
 	vs := v1.VolumeSnapshotClass{
@@ -121,15 +124,27 @@ func (b *BackupCsi) PrepareBackup() error {
 		DeletionPolicy: v1.VolumeSnapshotContentRetain,
 		Parameters:     map[string]string{},
 	}
+
 	_, err := snapshotClient.VolumeSnapshotClasses().Create(context.TODO(), &vs, metav1.CreateOptions{})
 	if err == nil {
 		b.vsc = &vs
 	}
+	b.dsc, err = GetDefaultStorageClass()
+	if err != nil {
+		return err
+	}
+	csiStorageClass, err := GetStorageClassByProvisioner(csiClient.Items[0].ObjectMeta.Name)
+	if err != nil {
+		return err
+	}
+	SetNewDefaultStorageClass(csiStorageClass.Name)
+
 	return err
 }
 
 func (b *BackupCsi) CleanBackup() error {
 	log.Printf("Deleting VolumeSnapshot for CSI backuprestore of %s", b.Backup.Name)
+	SetNewDefaultStorageClass(b.dsc.Name)
 	snapshotClient, _ := SetUpSnapshotClient()
 	return snapshotClient.VolumeSnapshotClasses().Delete(context.TODO(), b.vsc.Name, metav1.DeleteOptions{})
 }
@@ -151,7 +166,7 @@ func (b *BackupVsl) PrepareBackup() error {
 			vsl := velero.VolumeSnapshotLocation{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "snapshot-location-",
-					Namespace: Dpa.Namespace,
+					Namespace:    Dpa.Namespace,
 				},
 				Spec: velero.VolumeSnapshotLocationSpec{
 					Provider: item.Velero.Provider,

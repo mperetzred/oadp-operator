@@ -1,0 +1,30 @@
+- name: Check external image pods status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: Pod
+    namespace: "{{ namespace }}"
+    label_selectors: "cronowner={{ ext_app_name }}"
+    field_selectors: 
+    - status.phase=Succeeded
+  register: pod
+  until: pod.resources|default([])|length > 0
+  retries: 30
+
+- name: Check PVCs status
+  k8s_info:
+    host: "{{ url }}"
+    api_key: "{{ token }}"
+    verify_ssl: no
+    kind: PersistentVolumeClaim 
+    namespace: "{{ namespace }}"
+    label_selectors: "app={{ ext_app_name }}"
+  register: app_pvc
+
+- fail:
+    msg: "PVC {{ item.metadata.name }} should be bound, before and after the migration."
+  when: item.status.phase != 'Bound' 
+  loop: "{{ app_pvc.resources }}"
+  loop_control:
+    label: "check if PVC {{ item.metadata.name }} is bound in namespace {{ item.metadata.namespace }}"

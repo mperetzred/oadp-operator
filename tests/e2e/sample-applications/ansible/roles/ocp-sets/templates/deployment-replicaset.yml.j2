@@ -1,0 +1,29 @@
+apiVersion: {{ replicaset_api }}
+kind: ReplicaSet
+metadata:
+  name: {{ app_name }}
+spec:
+  replicas: {{ replicas }}
+  selector:
+    matchLabels:
+      tier: {{ app_name }}
+    matchExpressions:
+      - {key: tier, operator: In, values: [{{ app_name }}]}
+  template:
+    metadata:
+      labels:
+        app: guestbook
+        tier: {{ app_name }}
+    spec:
+      containers:
+      - name: hello-openshift
+        image: quay.io/openshifttest/hello-openshift:openshift
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        env:
+        - name: GET_HOSTS_FROM
+          value: dns
+        ports:
+        - containerPort: 8080
